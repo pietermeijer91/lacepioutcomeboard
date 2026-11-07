@@ -48,3 +48,11 @@ python3 -m http.server 8000
 | `settings` | één rij `pi`: startdatum, iteratielengte, naam |
 
 Bij gelijktijdig typen in hetzelfde veld wint de laatst opgeslagen wijziging.
+
+## Samenwerken
+- **Bord gebruiken:** deel de link. Wil je eerst oefenen of iets laten zien zonder het echte bord te veranderen? Gebruik de demomodus: https://pietermeijer91.github.io/lacepioutcomeboard/?demo
+- **Meebouwen met Claude Code:** vraag toegang tot deze repo en open hem in Claude Code. `CLAUDE.md` vertelt Claude hoe het bord in elkaar zit en welke afspraken gelden.
+- **Werkwijze:** werk op een eigen branch en open een pull request; `main` gaat direct live. Het PR-sjabloon bevat de checklist.
+- **Databasewijzigingen:** altijd als nieuw, genummerd bestand in `supabase/migrations/`. Iemand met toegang tot Supabase draait het script vóórdat de pull request wordt gemerged.
+- **Testen:** `index.html?demo` in de browser, of `node test/smoke.js` (Playwright) voor een snelle automatische check.
+- **Ideeën en bugs:** zet ze als GitHub Issue, dan kan iemand tegen Claude Code zeggen: "pak issue #12 op".

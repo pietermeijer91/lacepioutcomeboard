@@ -273,3 +273,6 @@ body.is-dragging .cell .add{opacity:0}
 .cilist .cimeta{font-size:12px;color:var(--muted);white-space:nowrap}
 .cilist li.note{display:block}
 @media (max-width:640px){ .three,.cigrid{grid-template-columns:1fr} .cilist li{grid-template-columns:auto minmax(0,1fr) 44px} .cilist .cimeta{display:none} }
+
+/* demomodus */
+.demobar{background:var(--watch-bg);color:var(--watch);font-size:13px;font-weight:600;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));text-align:center}
