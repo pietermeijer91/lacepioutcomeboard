@@ -356,3 +356,22 @@ body.is-dragging .cell .add{opacity:0}
 .srow .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:500}
 .srow .cstat{font-size:11px;font-weight:600;white-space:nowrap}
 .sstack{display:flex;flex-direction:column;gap:8px}
+
+/* ---------- sync verwerken ---------- */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.pxwrap{display:flex;flex-direction:column;gap:16px;max-width:980px}
+.pxrow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.pxrow label.btn{display:inline-flex;align-items:center;cursor:pointer}
+.pxrow label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.pxcode{min-width:180px}
+.errmsg{margin:0;font-size:13px;color:var(--bad);font-weight:500}
+.pxsum{margin:0;font-size:14px;line-height:1.5;background:var(--surface-2);border-radius:8px;padding:10px 12px}
+.pxlist{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.pxitem{border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.pxitem.bad{background:var(--surface-2)}
+.pxcheck{display:flex;gap:12px;align-items:flex-start;padding:12px;cursor:pointer}
+.pxcheck input{width:20px;height:20px;margin-top:2px;flex:none;accent-color:var(--accent)}
+.pxbody{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pxhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.pxtext{font-size:14px}
+.pxquote{font-size:13px;font-style:italic;color:var(--muted);border-left:3px solid var(--line-strong);padding-left:8px}

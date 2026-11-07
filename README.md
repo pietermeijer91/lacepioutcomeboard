@@ -20,6 +20,20 @@ Vul `config.js` met de **Project URL** en de **anon public key** (Project Settin
 ### 3. Publiceren
 Zet het bord op een statische host, bijvoorbeeld **GitHub Pages**: Settings > Pages > Deploy from a branch > `main` / root. Het bord staat dan op `https://pietermeijer91.github.io/lacepioutcomeboard/`. Andere opties zijn Azure Static Web Apps, Netlify of een interne webserver.
 
+### 4. Sync verwerken activeren (optioneel)
+Deze functie gebruikt de Claude API via een Supabase Edge Function, zodat de API-sleutel geheim blijft.
+1. Maak een API-sleutel aan op https://console.anthropic.com (API Keys). Kosten: enkele centen per verwerkte sync.
+2. Supabase > **Edge Functions** > **Deploy a new function** > **Via Editor**. Naam: `sync-voorstellen`. Plak de inhoud van `supabase/functions/sync-voorstellen/index.ts` en kies **Deploy**.
+3. Supabase > **Edge Functions** > **Secrets**: voeg toe
+   - `ANTHROPIC_API_KEY` = je API-sleutel
+   - `SYNC_CODE` = een zelfgekozen teamcode (aanrader: zonder code kan iedereen met de link je API-tegoed gebruiken)
+   - optioneel `ANTHROPIC_MODEL` (standaard `claude-sonnet-5-5`)
+4. Vul in de tab *Sync verwerken* eenmalig de teamcode in; je browser onthoudt hem.
+
+Met de Supabase CLI kan het ook: `supabase functions deploy sync-voorstellen` en `supabase secrets set ANTHROPIC_API_KEY=… SYNC_CODE=…`.
+
+Let op privacy: het transcript gaat naar de API van Anthropic. Stem af met IT/privacy of dat past binnen jullie beleid, en kondig opnemen en transcriberen aan in de sync.
+
 ### Lokaal draaien
 ```bash
 python3 -m http.server 8000
@@ -40,6 +54,7 @@ python3 -m http.server 8000
 - **Leerpunten** bij mijlpalen met een besluit (doorgaan, bijsturen, stoppen); per outcome verschijnt een leerlog.
 - **Planner** (tab): kanban per outcome (*Te doen, Bezig, Wacht op, Klaar*) plus een rij *Run & overig*. Taken hangen aan een outcome en optioneel aan een mijlpaal; bij de mijlpaal zie je dan hoeveel taken klaar zijn. Filters *Mijn taken*, *Deze iteratie* en *Vastgelopen of te laat*, en een waarschuwing bij meer dan 3 taken tegelijk in *Bezig* per persoon.
 - **Weekly sync** (tab): loop per outcome door de sync, met timer van 5 minuten, check-in, mijlpalen van nu en de volgende iteratie, en taken die vastzitten. Het laatste scherm (✓) toont wat nog openstaat: outcomes zonder check-in deze week, mijlpalen met risico en vastgelopen taken.
+- **Sync verwerken** (tab): plak of upload het Teams-transcript van de sync (.vtt of tekst). Claude doet voorstellen (check-ins, key result-waarden, taakstatus, nieuwe taken, mijlpaalstatus, leerpunten), elk met een citaat als bewijs. Je vinkt aan wat klopt en past het toe; zonder goedkeuring verandert er niets.
 - **PI-instellingen**: naam van de PI, startdatum, iteratielengte, aantal iteraties en wel of geen IP-iteratie. Hier kun je ook de gegevens uit het eerdere canvas-bord plakken.
 
 ## Datamodel

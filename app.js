@@ -784,7 +784,7 @@
   }
 
   /* ---------- weergaven (tabs) ---------- */
-  var VIEWS = { board: 'viewBoard', planner: 'viewPlanner', sync: 'viewSync' };
+  var VIEWS = { board: 'viewBoard', planner: 'viewPlanner', sync: 'viewSync', verwerken: 'viewProcess' };
   function setView(v, fromHash) {
     if (!VIEWS[v]) v = 'board';
     S.view = v;
@@ -793,6 +793,7 @@
     if (!fromHash) { try { history.replaceState(null, '', v === 'board' ? location.pathname + location.search : '#' + v); } catch (e) {} }
     if (v !== 'sync') stopTimer();
     renderViews();
+    if (v === 'verwerken') renderProcess();
   }
   document.querySelector('.tabs').addEventListener('click', function (e) { var t = e.target.closest('.tab'); if (t) setView(t.dataset.view); });
   window.addEventListener('hashchange', function () { setView(location.hash.slice(1) || 'board', true); });
@@ -1000,6 +1001,180 @@
       $('sync-ci-note').value = '';
       queue('outcomes', o.id, { checkins: cis }, 0);
       toast('Check-in opgeslagen.');
+    }
+  });
+
+  /* ---------- sync verwerken (transcript → voorstellen → goedkeuren) ---------- */
+  var CODE_KEY = 'lace-pi-synccode-v1';
+  var PX = { busy: false, error: '', summary: '', items: [], applied: '' };
+  var PTYPE = { checkin: 'Check-in', kr_waarde: 'Key result', taak_status: 'Taak bijwerken', taak_nieuw: 'Nieuwe taak', mijlpaal_status: 'Mijlpaal', leerpunt: 'Leerpunt' };
+
+  function vttToText(t) {
+    return String(t).replace(/^WEBVTT.*$/m, '').split(/\r?\n/).filter(function (l) {
+      return l.trim() && !/^\d+$/.test(l.trim()) && !/-->/.test(l) && !/^NOTE\b/.test(l);
+    }).map(function (l) { return l.replace(/<v\s+([^>]+)>/g, '$1: ').replace(/<\/?[^>]+>/g, ''); }).join('\n');
+  }
+
+  function boardSnapshot() {
+    var T = timeInfo(), names = iterNames();
+    return {
+      pi: { naam: S.settings.piName || '', iteraties: names, huidige_iteratie: T.nowIdx >= 0 ? names[T.nowIdx] : 'nog niet gestart', vandaag: new Date().toISOString().slice(0, 10) },
+      mensen: knownOwners(),
+      outcomes: sortedOutcomes().map(function (o) {
+        var cis = checkinsOf(o), last = cis[cis.length - 1];
+        return { id: o.id, titel: o.title, key_results: (o.krs || []).map(function (k) { return { id: k.id, tekst: k.text, nu: k.current, doel: k.target, eenheid: k.unit || '' }; }),
+          bijdragen: (o.contribs || []).map(function (c) { return (c.owner || '') + (c.text ? ': ' + c.text : ''); }),
+          laatste_checkin: last ? { vertrouwen: last.confidence, datum: String(last.date).slice(0, 10) } : null };
+      }),
+      mijlpalen: msList().map(function (m) { return { id: m.id, titel: m.title, outcome_id: m.row === 'art' ? 'ART' : m.row, iteratie: iterOf(m), status: m.status || 'planned', soort: m.type }; }),
+      taken: S.tasksMissing ? [] : taskList().map(function (t) { return { id: t.id, titel: t.title, outcome_id: t.outcome || '', mijlpaal_id: t.milestone || '', eigenaar: t.owner || '', status: t.status }; })
+    };
+  }
+
+  // Controleert een voorstel tegen de huidige stand en maakt er een leesbare regel van.
+  function describe(p) {
+    var o = p.outcome_id ? S.outcomes[p.outcome_id] : null, m = p.mijlpaal_id ? S.milestones[p.mijlpaal_id] : null, t = p.taak_id ? S.tasks[p.taak_id] : null;
+    var names = iterNames(), bad = '';
+    switch (p.type) {
+      case 'checkin':
+        if (!o) bad = 'Onbekende outcome';
+        else if (!(num(p.vertrouwen) >= 1 && num(p.vertrouwen) <= 5)) bad = 'Geen geldige vertrouwensscore';
+        return { bad: bad, where: o ? o.title : '', text: 'Vertrouwen ' + num(p.vertrouwen) + '/5' + (p.notitie ? ' · “' + p.notitie + '”' : '') };
+      case 'kr_waarde':
+        var k = o ? (o.krs || []).find(function (x) { return x.id === p.kr_id; }) : null;
+        if (!k) bad = 'Onbekend key result';
+        else if (num(k.current) === num(p.waarde)) bad = 'Staat al zo op het bord';
+        return { bad: bad, where: o ? o.title : '', text: k ? (k.text + ': ' + num(k.current) + ' → ' + num(p.waarde) + (k.unit || '')) : '' };
+      case 'taak_status':
+        if (!t) bad = S.tasksMissing ? 'Planner niet geactiveerd' : 'Onbekende taak';
+        else if (p.status && !TSTATUS[p.status]) bad = 'Onbekende status';
+        else if ((!p.status || p.status === t.status) && (!p.eigenaar || ownerKey(p.eigenaar) === ownerKey(t.owner))) bad = 'Staat al zo op het bord';
+        return { bad: bad, where: t ? t.title : '', text: (p.status && t ? TSTATUS[t.status] + ' → ' + TSTATUS[p.status] : '') + (p.eigenaar && t ? (p.status ? ' · ' : '') + 'eigenaar → ' + p.eigenaar : '') };
+      case 'taak_nieuw':
+        if (S.tasksMissing) bad = 'Planner niet geactiveerd';
+        else if (!p.titel) bad = 'Geen titel';
+        else if (p.outcome_id && !o) bad = 'Onbekende outcome';
+        return { bad: bad, where: o ? o.title : 'Run & overig', text: (p.titel || '') + (p.eigenaar ? ' · ' + p.eigenaar : '') + (m ? ' · mijlpaal ' + m.title : '') + (p.iteratie != null && names[num(p.iteratie)] ? ' · ' + names[num(p.iteratie)] : '') };
+      case 'mijlpaal_status':
+        if (!m) bad = 'Onbekende mijlpaal';
+        else if (!STATUS[p.status]) bad = 'Onbekende status';
+        else if ((m.status || 'planned') === p.status) bad = 'Staat al zo op het bord';
+        return { bad: bad, where: m ? m.title : '', text: m ? STATUS[m.status || 'planned'] + ' → ' + (STATUS[p.status] || p.status) : '' };
+      case 'leerpunt':
+        if (!m) bad = 'Onbekende mijlpaal';
+        else if (!p.leerpunt) bad = 'Geen leerpunt';
+        else if ((m.learning || '') === p.leerpunt) bad = 'Staat al zo op het bord';
+        return { bad: bad, where: m ? m.title : '', text: (p.leerpunt || '') + (p.besluit && DECISION[p.besluit] ? ' · besluit: ' + DECISION[p.besluit] : '') };
+    }
+    return { bad: 'Onbekend soort voorstel', where: '', text: '' };
+  }
+
+  function applyProposal(p) {
+    var who = myName() || 'Sync-assistent';
+    if (p.type === 'checkin') {
+      var o = S.outcomes[p.outcome_id], cis = clone(Array.isArray(o.checkins) ? o.checkins : []);
+      cis.push({ id: rid('ci'), date: new Date().toISOString(), confidence: num(p.vertrouwen), note: p.notitie || '', by: who });
+      queue('outcomes', p.outcome_id, { checkins: cis }, 0);
+    } else if (p.type === 'kr_waarde') {
+      var o2 = S.outcomes[p.outcome_id], krs = clone(o2.krs || []);
+      krs.forEach(function (k) { if (k.id === p.kr_id) k.current = num(p.waarde); });
+      queue('outcomes', p.outcome_id, { krs: krs }, 0);
+    } else if (p.type === 'taak_status') {
+      var tp = {}; if (p.status) tp.status = p.status; if (p.eigenaar) tp.owner = p.eigenaar;
+      queue('tasks', p.taak_id, tp, 0);
+    } else if (p.type === 'taak_nieuw') {
+      var m = p.mijlpaal_id ? S.milestones[p.mijlpaal_id] : null;
+      insert('tasks', rid('t'), Object.assign({ title: p.titel, outcome: p.outcome_id && S.outcomes[p.outcome_id] ? p.outcome_id : '', milestone: m ? m.id : '', owner: p.eigenaar || '', status: 'todo',
+        iter: p.iteratie != null ? Math.max(0, Math.min(lastCol(), num(p.iteratie))) : (m ? iterOf(m) : null), checklist: [], notes: 'Toegevoegd vanuit sync-verwerking.', order: Date.now(), createdAt: new Date().toISOString() }, meta()));
+    } else if (p.type === 'mijlpaal_status') {
+      queue('milestones', p.mijlpaal_id, { status: p.status }, 0);
+    } else if (p.type === 'leerpunt') {
+      var lp = { learning: p.leerpunt }; if (p.besluit && DECISION[p.besluit]) lp.decision = p.besluit;
+      queue('milestones', p.mijlpaal_id, lp, 0);
+    }
+  }
+
+  function renderProcess() {
+    var el = $('process'); if (!el) return;
+    var keepT = $('px-text') ? $('px-text').value : '';
+    var code = ''; try { code = localStorage.getItem(CODE_KEY) || ''; } catch (e) {}
+    var h = '<div class="pxwrap"><section class="sbox"><h3>1. Transcript van de sync</h3>' +
+      '<p class="note">Zet in Teams de transcriptie aan. Download na de sync het transcript als <b>.vtt</b> of kopieer de tekst, en plak of upload het hier. De assistent doet voorstellen; er verandert pas iets als jij ze toepast.</p>' +
+      '<label class="field" for="px-text">Transcript<textarea class="prose" id="px-text" rows="10" placeholder="Plak hier het transcript…"></textarea></label>' +
+      '<div class="pxrow"><label class="btn" for="px-file">Bestand kiezen (.vtt of .txt)</label><input id="px-file" type="file" accept=".vtt,.txt,text/vtt,text/plain" class="sr-only">' +
+      (window.LACE_DEMO ? '' : '<label class="field pxcode" for="px-code">Teamcode<input id="px-code" type="password" autocomplete="off" value="' + esc(code) + '" placeholder="Als ingesteld"></label>') +
+      '<span style="flex:1"></span><button type="button" class="btn primary" data-xact="run"' + (PX.busy || S.readOnly ? ' disabled' : '') + '>' + (PX.busy ? 'Bezig met verwerken…' : 'Verwerk sync') + '</button></div>' +
+      (PX.error ? '<p class="errmsg" role="alert">' + esc(PX.error) + '</p>' : '') +
+      (PX.applied ? '<p class="okmsg" role="status">' + esc(PX.applied) + '</p>' : '') + '</section>';
+
+    if (PX.items.length || PX.summary) {
+      var valid = PX.items.filter(function (it) { return !it.d.bad; }), on = valid.filter(function (it) { return it.on; }).length;
+      h += '<section class="sbox"><h3>2. Voorstellen</h3>' + (PX.summary ? '<p class="pxsum">' + esc(PX.summary) + '</p>' : '') +
+        (PX.items.length ? '<div class="pxrow"><button type="button" class="btn" data-xact="all">Alles aan</button><button type="button" class="btn" data-xact="none">Alles uit</button><span style="flex:1"></span>' +
+          '<button type="button" class="btn primary" data-xact="apply"' + (on ? '' : ' disabled') + '>' + on + ' voorstel' + (on === 1 ? '' : 'len') + ' toepassen</button></div>' +
+          '<ul class="pxlist">' + PX.items.map(function (it, i) {
+            var p = it.p, d = it.d;
+            return '<li class="pxitem' + (d.bad ? ' bad' : '') + '"><label class="pxcheck"><input type="checkbox" data-xi="' + i + '"' + (it.on && !d.bad ? ' checked' : '') + (d.bad ? ' disabled' : '') + '>' +
+              '<span class="pxbody"><span class="pxhead"><span class="tag">' + esc(PTYPE[p.type] || p.type) + '</span><b>' + esc(d.where) + '</b></span>' +
+              '<span class="pxtext">' + esc(d.text) + '</span>' +
+              (p.citaat ? '<span class="pxquote">“' + esc(p.citaat) + '”</span>' : '') +
+              (p.toelichting ? '<span class="meta">' + esc(p.toelichting) + '</span>' : '') +
+              (d.bad ? (d.bad === 'Staat al zo op het bord' ? '<span class="meta">Staat al zo op het bord.</span>' : '<span class="errmsg">Kan niet worden toegepast: ' + esc(d.bad) + '</span>') : '') + '</span></label></li>';
+          }).join('') + '</ul>' : '<p class="meta">Geen voorstellen: in het transcript stond niets dat het bord verandert.</p>') + '</section>';
+    }
+    el.innerHTML = h + '</div>';
+    if (keepT) $('px-text').value = keepT;
+  }
+
+  function runProcess() {
+    var text = ($('px-text').value || '').trim();
+    if (/^WEBVTT/.test(text) || /-->/.test(text)) text = vttToText(text);
+    if (text.length < 50) { PX.error = 'Plak eerst een transcript (minimaal een paar zinnen).'; renderProcess(); return; }
+    var codeEl = $('px-code'), code = codeEl ? codeEl.value.trim() : '';
+    try { localStorage.setItem(CODE_KEY, code); } catch (e) {}
+    PX.busy = true; PX.error = ''; PX.applied = ''; PX.items = []; PX.summary = ''; renderProcess();
+    var payload = { transcript: text, board: boardSnapshot() };
+    var call = window.LACE_DEMO_SYNC ? window.LACE_DEMO_SYNC(payload) :
+      fetch(cfg.supabaseUrl + '/functions/v1/sync-voorstellen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.supabaseAnonKey, 'apikey': cfg.supabaseAnonKey, 'x-sync-code': code },
+        body: JSON.stringify(payload)
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (r.status === 404) throw new Error('De functie sync-voorstellen is nog niet geïnstalleerd in Supabase. Zie de README.');
+          if (!r.ok) throw new Error(j.error || ('Verwerken mislukt (' + r.status + ').'));
+          return j;
+        });
+      });
+    Promise.resolve(call).then(function (j) {
+      PX.summary = j.samenvatting || '';
+      PX.items = (j.voorstellen || []).map(function (p) { var d = describe(p); return { p: p, d: d, on: !d.bad }; });
+    }, function (e) { PX.error = (e && e.message) || 'Verwerken mislukt. Controleer je verbinding en probeer het opnieuw.'; })
+      .then(function () { PX.busy = false; renderProcess(); });
+  }
+
+  $('process').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-xact]'); if (!b || b.disabled) return;
+    var a = b.dataset.xact;
+    if (a === 'run') runProcess();
+    else if (a === 'all' || a === 'none') { PX.items.forEach(function (it) { if (!it.d.bad) it.on = a === 'all'; }); renderProcess(); }
+    else if (a === 'apply' && !S.readOnly) {
+      var n = 0;
+      PX.items.forEach(function (it) { it.d = describe(it.p); if (it.on && !it.d.bad) { applyProposal(it.p); n++; } });
+      PX.items = PX.items.filter(function (it) { return !it.on || it.d.bad; });
+      PX.applied = n + ' voorstel' + (n === 1 ? '' : 'len') + ' toegepast op het bord.';
+      renderAll(); renderProcess(); toast(PX.applied);
+    }
+  });
+  $('process').addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.dataset.xi != null) { var it = PX.items[num(el.dataset.xi)]; if (it) { it.on = el.checked; renderProcess(); } return; }
+    if (el.id === 'px-file' && el.files && el.files[0]) {
+      var f = el.files[0];
+      if (f.size > 2000000) { PX.error = 'Dit bestand is te groot (max. 2 MB).'; renderProcess(); return; }
+      var rd = new FileReader();
+      rd.onload = function () { var t = String(rd.result || ''); $('px-text').value = /^WEBVTT/.test(t) || /\.vtt$/i.test(f.name) ? vttToText(t) : t; PX.error = ''; };
+      rd.readAsText(f);
     }
   });
 

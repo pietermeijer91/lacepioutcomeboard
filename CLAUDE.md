@@ -15,6 +15,7 @@ Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `mai
 - In `app.js` heten velden camelCase; `KEYMAP` vertaalt naar de snake_case-kolommen (`toRow`/`fromRow`). Nieuwe kolom met een andere naam? Voeg hem toe aan `KEYMAP`.
 - Schrijven gaat via `queue(col, id, patch, delay)` (optimistisch lokaal bijwerken, daarna debounced `update`). Realtime-events en `loadAll()` leggen openstaande wijzigingen eroverheen (`overlay`), zodat typen niet wordt overschreven.
 - Drie weergaven via tabs en de URL-hash: Outcome Board (standaard), `#planner` en `#sync`. `renderViews()` tekent de actieve weergave; gebruik die in plaats van `renderBoard()` na een wijziging.
+- **Sync verwerken** (`#verwerken`): stuurt transcript + `boardSnapshot()` naar de Edge Function `supabase/functions/sync-voorstellen` (Deno), die Claude aanroept met een geforceerde tool (`stel_voor`). Voorstellen worden in de browser gecontroleerd (`describe`) en pas na goedkeuring toegepast (`applyProposal`) via `queue`/`insert`. Nieuw soort voorstel? Pas het tool-schema in de functie, `describe`, `applyProposal` en `LACE_DEMO_SYNC` in `test/demo-data.js` aan. De API-sleutel staat alleen in de secrets van de functie, nooit in de frontend.
 - Weergave: `renderBoard()` bouwt het bord als HTML-string; het zijpaneel (`buildDrawer`/`syncDrawer`) wordt apart bijgewerkt zodat focus en cursor behouden blijven.
 
 ## Afspraken

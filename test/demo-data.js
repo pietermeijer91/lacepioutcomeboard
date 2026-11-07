@@ -80,6 +80,21 @@
     }
   };
 
+  // Gesimuleerde Edge Function voor 'Sync verwerken' (geen echte Claude-aanroep in demomodus).
+  window.LACE_DEMO_SYNC = function () {
+    return new Promise(function (res) { setTimeout(function () { res({
+      samenvatting: 'Voorbeeld: de RTE-sessie is gehouden en leverde inzichten op; de koppeling met Jira loopt nog. Er komt een nieuwe taak voor de handleiding.',
+      voorstellen: [
+        { type: 'checkin', outcome_id: 'o1', vertrouwen: 4, notitie: 'RTE-sessie goed ontvangen', citaat: 'ik zit nu wel op een vier', toelichting: 'Voorbeeld A noemt zelf een vier.' },
+        { type: 'mijlpaal_status', mijlpaal_id: 'm5', status: 'done', citaat: 'de RTE-sessie hebben we dinsdag gedaan', toelichting: 'De sessie heeft plaatsgevonden.' },
+        { type: 'leerpunt', mijlpaal_id: 'm5', leerpunt: 'RTE\'s willen de cijfers per ART-sync, niet per maand.', besluit: 'adjust', citaat: 'ze willen het elke sync zien', toelichting: 'Uitkomst van de sessie.' },
+        { type: 'taak_status', taak_id: 't3', status: 'done', citaat: 'agenda was rond', toelichting: 'De agenda is afgestemd.' },
+        { type: 'kr_waarde', outcome_id: 'o1', kr_id: 'k1', waarde: 3, citaat: 'we zitten nu op drie ARTs', toelichting: 'Nieuw aantal genoemd.' },
+        { type: 'taak_nieuw', outcome_id: 'o1', mijlpaal_id: 'm4', titel: 'Korte handleiding dashboard schrijven', eigenaar: 'Voorbeeld B', citaat: 'kan jij een korte handleiding maken', toelichting: 'Actiepunt uit de sync.' },
+        { type: 'taak_status', taak_id: 'bestaat-niet', status: 'done', citaat: 'dat ding is af', toelichting: 'Voorbeeld van een voorstel dat niet klopt.' }
+      ] }); }, 300); });
+  };
+
   document.addEventListener('DOMContentLoaded', function () {
     var b = document.createElement('div');
     b.className = 'demobar';

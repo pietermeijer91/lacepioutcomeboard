@@ -122,6 +122,23 @@ const shot = process.argv.includes('--shot');
     await page.click('.tab[data-view="board"]');
   });
 
+  await check('sync verwerken: voorstellen tonen en toepassen', async () => {
+    await page.click('.tab[data-view="verwerken"]');
+    await page.fill('#px-text', 'Voorbeeld A: ik zit nu wel op een vier. De RTE-sessie hebben we dinsdag gedaan en de agenda was rond.');
+    await page.click('[data-xact="run"]');
+    await page.waitForSelector('.pxitem', { timeout: 3000 });
+    assert(await page.locator('.pxitem').count() === 7, 'aantal voorstellen klopt niet');
+    assert(await page.locator('.pxitem.bad').count() === 1, 'ongeldig voorstel niet herkend');
+    await page.click('[data-xact="apply"]');
+    await page.waitForTimeout(100);
+    assert(S_ok(await page.locator('.pxwrap .okmsg').innerText()), 'geen bevestiging');
+    await page.click('.tab[data-view="planner"]');
+    assert(await page.locator('#planner [data-tdrop-status="done"] .tcard[data-id="t3"]').count() === 1, 'taakstatus niet toegepast');
+    assert(await page.locator('#planner .tcard', { hasText: 'Korte handleiding dashboard' }).count() === 1, 'nieuwe taak ontbreekt');
+    await page.click('.tab[data-view="board"]');
+  });
+  function S_ok(t) { return /6 voorstellen toegepast/.test(t); }
+
   await check('geen JavaScript-fouten', async () => { assert(errors.length === 0, errors.join(' | ')); });
 
   if (shot) {
@@ -130,6 +147,10 @@ const shot = process.argv.includes('--shot');
     await page.screenshot({ path: path.join(__dirname, 'screenshot-planner.png'), fullPage: true });
     await page.click('.tab[data-view="sync"]'); await page.click('#sync [data-sact="go"][data-i="0"]'); await page.waitForTimeout(100);
     await page.screenshot({ path: path.join(__dirname, 'screenshot-sync.png'), fullPage: true });
+    await page.click('.tab[data-view="verwerken"]');
+    await page.fill('#px-text', 'Voorbeeldtranscript van de sync met genoeg tekst om te verwerken door de assistent.');
+    await page.click('[data-xact="run"]'); await page.waitForSelector('.pxitem');
+    await page.screenshot({ path: path.join(__dirname, 'screenshot-verwerken.png'), fullPage: true });
   }
   await browser.close();
 
