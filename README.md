@@ -11,7 +11,7 @@ Een gedeeld bord waarop het LACE-team richting PI-outcomes plant en bijhoudt hoe
 ### 1. Supabase-project
 1. Maak een project aan op supabase.com (de gratis tier is genoeg).
 2. Open **SQL Editor**, plak `supabase/schema.sql` en kies **Run**.
-3. Al een eerdere versie geïnstalleerd? Voer dan ook `supabase/migrations/002_bijdrage_koppeling.sql` uit.
+3. Al een eerdere versie geïnstalleerd? Voer dan ook de bestanden in `supabase/migrations/` uit, op volgorde.
 4. Optioneel: voer `supabase/seed.sql` uit voor de startinhoud (placeholders en de vaste PI-events).
 
 ### 2. Configuratie
@@ -33,7 +33,7 @@ python3 -m http.server 8000
 - **Vandaag-lijn**: een oranje lijn markeert de huidige dag; geplande mijlpalen in een voorbije iteratie krijgen een gestippelde rand.
 - **+ PI-outcome**: voeg een outcome toe en vul de key results in (start, doel, nu). De voortgang en de status (Gepland, Op koers, Aandacht, Achter, Behaald) worden berekend tegenover de verwachte voortgang op basis van de tijd in de PI.
 - **+ mijlpaal** in een iteratiekolom: plan een mijlpaal en houd de status bij (gepland, gehaald, risico, gemist).
-- **PI-instellingen**: naam van de PI, startdatum en iteratielengte. Hier kun je ook de gegevens uit het eerdere canvas-bord plakken.
+- **PI-instellingen**: naam van de PI, startdatum, iteratielengte, aantal iteraties en wel of geen IP-iteratie. Hier kun je ook de gegevens uit het eerdere canvas-bord plakken.
 
 ## Datamodel
 | Tabel | Inhoud |

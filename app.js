@@ -2,19 +2,33 @@
 (function () {
   'use strict';
 
-  var ITER_NAMES = ['Iteratie 1', 'Iteratie 2', 'Iteratie 3', 'Iteratie 4', 'IP-iteratie', 'Volgende PI'];
+  /* Kolommen: N iteraties, optioneel een IP-iteratie, en de volgende PI */
+  function piIterCount() { return Math.min(6, Math.max(2, num(S.settings.iterationCount) || 4)) + (S.settings.ipIteration === false ? 0 : 1); }
+  function iterNames() {
+    var n = Math.min(6, Math.max(2, num(S.settings.iterationCount) || 4)), out = [];
+    for (var i = 1; i <= n; i++) out.push('Iteratie ' + i);
+    if (S.settings.ipIteration !== false) out.push('IP-iteratie');
+    out.push('Volgende PI');
+    return out;
+  }
+  function lastCol() { return piIterCount(); }
+  function iterOf(m) { return Math.max(0, Math.min(lastCol(), num(m.iter))); }
+  function hiNums(text) {
+    var parts = String(text == null ? '' : text).split(/(\d+(?:[.,]\d+)?\s?%?)/);
+    return parts.map(function (p, i) { return i % 2 ? '<strong class="kn">' + esc(p) + '</strong>' : esc(p); }).join('');
+  }
   var TYPES = { fixed: { l: 'Vaste datum', v: '--m-fixed' }, learn: { l: 'Leren', v: '--m-learn' }, sync: { l: 'Synchronisatie', v: '--m-sync' }, release: { l: 'Release', v: '--m-release' } };
   var STATUS = { planned: 'Gepland', done: 'Gehaald', risk: 'Risico', missed: 'Gemist' };
   var HEALTH = { planned: 'Gepland', ok: 'Op koers', watch: 'Aandacht', behind: 'Achter', done: 'Behaald' };
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
 
-  var S = { sb: null, session: null, ready: false, outcomes: {}, milestones: {}, settings: { piStart: '2026-12-09', iterationWeeks: 2, piName: '' }, open: {}, sel: null, readOnly: false };
+  var S = { sb: null, session: null, ready: false, outcomes: {}, milestones: {}, settings: { piStart: '2026-12-09', iterationWeeks: 2, piName: '', iterationCount: 4, ipIteration: true }, open: {}, sel: null, readOnly: false };
   var pending = {};
   var saving = 0;
 
@@ -52,12 +66,13 @@
     var len = weeks * 7;
     var now = new Date(); var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     var elapsed = Math.round((today - start) / 86400000);
-    var piDays = len * 5;
-    var nowIdx = elapsed < 0 ? -1 : Math.min(5, Math.floor(elapsed / len));
+    var nIt = piIterCount(), names = iterNames();
+    var piDays = len * nIt;
+    var nowIdx = elapsed < 0 ? -1 : Math.min(nIt, Math.floor(elapsed / len));
     var expected = Math.round(Math.max(0, Math.min(1, elapsed / piDays)) * 100);
     function add(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
     function fmt(d) { return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }); }
-    var iters = ITER_NAMES.map(function (n, i) { var s = add(start, i * len), e = add(s, len - 1); return { name: n, dates: i === 5 ? 'vanaf ' + fmt(s) : fmt(s) + ' – ' + fmt(e) }; });
+    var iters = names.map(function (n, i) { var s = add(start, i * len), e = add(s, len - 1); return { name: n, dates: i === nIt ? 'vanaf ' + fmt(s) : fmt(s) + ' – ' + fmt(e) }; });
     var end = add(start, piDays - 1);
     var todayIdx = elapsed >= 0 && elapsed < piDays ? nowIdx : -1;
     var tpos = todayIdx >= 0 ? Math.round(((elapsed - todayIdx * len) + 0.5) / len * 1000) / 10 : 0;
@@ -103,13 +118,13 @@
     $('tMs').textContent = done + ' / ' + ms.length; $('tMsSub').textContent = ms.length ? planned + ' nog gepland' : 'nog niets gepland';
     $('tRisk').textContent = risk; $('tRisk').style.color = risk ? 'var(--bad)' : '';
     if (T.nowIdx < 0) { var d = -T.elapsed; $('tNow').textContent = 'Start over ' + d + (d === 1 ? ' dag' : ' dagen'); $('tNowSub').textContent = 'PI start ' + T.start.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
-    else if (T.nowIdx >= 5) { $('tNow').textContent = 'PI afgerond'; $('tNowSub').textContent = 'Tijd voor de volgende PI Planning'; }
-    else { $('tNow').textContent = ITER_NAMES[T.nowIdx]; $('tNowSub').textContent = 'Dag ' + (T.elapsed + 1) + ' van ' + T.piDays + ' · verwacht ' + T.expected + '% gerealiseerd'; }
+    else if (T.nowIdx >= piIterCount()) { $('tNow').textContent = 'PI afgerond'; $('tNowSub').textContent = 'Tijd voor de volgende PI Planning'; }
+    else { $('tNow').textContent = iterNames()[T.nowIdx]; $('tNowSub').textContent = 'Dag ' + (T.elapsed + 1) + ' van ' + T.piDays + ' · verwacht ' + T.expected + '% gerealiseerd'; }
   }
 
   function msState(m, T) {
     var st = STATUS[m.status] ? m.status : 'planned';
-    var late = st === 'planned' && T.nowIdx >= 0 && num(m.iter) < T.nowIdx;
+    var late = st === 'planned' && T.nowIdx >= 0 && iterOf(m) < T.nowIdx;
     var cls = late ? 'late' : st;
     var label = late ? 'Verlopen' : STATUS[st];
     var icon = { done: '✓ ', risk: '! ', late: '! ', missed: '× ' }[cls] || '';
@@ -130,7 +145,7 @@
   }
   function addBtn(row, i, contrib) {
     if (S.readOnly) return '';
-    return '<button type="button" class="add" data-act="addms" data-row="' + esc(row) + '" data-iter="' + i + '" data-contrib="' + esc(contrib || '') + '" aria-label="Mijlpaal toevoegen in ' + esc(ITER_NAMES[i]) + '">+</button>';
+    return '<button type="button" class="add" data-act="addms" data-row="' + esc(row) + '" data-iter="' + i + '" data-contrib="' + esc(contrib || '') + '" aria-label="Mijlpaal toevoegen in ' + esc(iterNames()[i]) + '">+</button>';
   }
   function cell(i, r, T, inner, extra, drop) {
     var cls = 'cell' + (i === T.nowIdx ? ' now' : '') + (i === T.todayIdx ? ' today' : '') + (extra ? ' ' + extra : '');
@@ -153,7 +168,7 @@
 
     var art = ms.filter(function (m) { return m.row === 'art'; });
     h += '<div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>ART- &amp; LACE-mijlpalen</h3><span class="meta">Events en vaste data voor het hele ART</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
-      ITER_NAMES.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div>';
+      T.iters.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div>';
 
     if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je bijdragen, key results en mijlpalen per iteratie toevoegen.</div>';
 
@@ -171,7 +186,7 @@
           '<div class="ocell" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
           '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + '</span></div>' +
           '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
-          ITER_NAMES.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
+          T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
           '</div>';
         return;
       }
@@ -186,7 +201,7 @@
         '<div class="ocell" style="grid-column:1;grid-row:1 / span ' + n + '">' +
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
         '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
-        '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + esc(k.text) + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
+        '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
         (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">Outcome bewerken</button></div>') +
         (o.updatedAt ? '<span class="meta">' + esc(whoLabel(o)) + '</span>' : '') + '</div>';
 
@@ -194,12 +209,13 @@
         var r = idx + 1, first = idx === 0 ? ' first' : '';
         var lms = ln.whole ? loose : oms.filter(function (m) { return m.contrib === ln.id; });
         h += '<div class="lane l' + first + (ln.whole ? ' whole' : '') + '" style="grid-column:2;grid-row:' + r + '"><b>' + esc(ln.owner || '–') + '</b>' + (ln.text ? '<span>' + esc(ln.text) + '</span>' : '') + '</div>';
-        ITER_NAMES.forEach(function (nm, i) {
-          h += cell(i, r, T, lms.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ln.id), 'l' + first, { row: o.id, contrib: ln.id });
+        T.iters.forEach(function (nm, i) {
+          h += cell(i, r, T, lms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ln.id), 'l' + first, { row: o.id, contrib: ln.id });
         });
       });
       h += '</div>';
     });
+    $('board').style.setProperty('--cols', T.iters.length);
     $('board').innerHTML = h;
     var vt = $('btnView'); if (vt) { vt.textContent = S.expandAll ? 'Focus op één outcome' : 'Alles uitklappen'; vt.setAttribute('aria-pressed', String(!!S.expandAll)); }
   }
@@ -216,6 +232,7 @@
   function check(res) {
     if (res && res.error) {
       var e = res.error;
+      if (/iteration_count|ip_iteration|iter_check/.test(e.message || '')) { toast('De database mist nog een aanpassing. Voer supabase/migrations/003_iteraties_instelbaar.sql uit in Supabase.'); return; }
       if (/contrib_ref/.test(e.message || '')) { toast('De database mist nog een kolom. Voer supabase/migrations/002_bijdrage_koppeling.sql uit in Supabase.'); return; }
       if (e.code === '42501' || /row-level security|permission/i.test(e.message || '')) { S.readOnly = true; toast('Opslaan lukt niet: je account heeft geen schrijfrechten op dit bord.'); renderAll(); }
       else toast('Opslaan mislukt: ' + (e.message || 'onbekende fout') + '. Probeer het opnieuw.');
@@ -321,10 +338,10 @@
     var row = c.dataset.dropRow, iter = num(c.dataset.dropIter), contrib = c.dataset.dropContrib;
     if (contrib === '*') contrib = m.row === row ? (m.contrib || '') : '';
     if (row === 'art') contrib = '';
-    if (m.row === row && num(m.iter) === iter && (m.contrib || '') === contrib) return;
+    if (m.row === row && iterOf(m) === iter && (m.contrib || '') === contrib) return;
     queue('milestones', id, { row: row, iter: iter, contrib: contrib }, 0);
     syncDrawer();
-    toast('Verplaatst naar ' + ITER_NAMES[iter] + '.');
+    toast('Verplaatst naar ' + iterNames()[iter] + '.');
   }
   window.addEventListener('pointerup', function (e) { endDrag(e, false); });
   window.addEventListener('pointercancel', function (e) { endDrag(e, true); });
@@ -356,7 +373,7 @@
         '<label class="field">Status<select id="m-status" data-f="status"' + ro + '>' + Object.keys(STATUS).map(function (k) { return opt(k, STATUS[k], m.status || 'planned'); }).join('') + '</select></label>' +
         '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + opt('art', 'ART- & LACE-mijlpalen', m.row) + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
         '<label class="field">Bijdrage (baan)<select id="m-contrib" data-f="contrib"' + (S.readOnly || m.row === 'art' ? ' disabled' : '') + '>' + contribOptions(m.row, m.contrib) + '</select></label>' +
-        '<label class="field">Iteratie<select id="m-iter" data-f="iter"' + ro + '>' + ITER_NAMES.map(function (n, i) { return opt(i, n, num(m.iter)); }).join('') + '</select></label></div>' +
+        '<label class="field">Iteratie<select id="m-iter" data-f="iter"' + ro + '>' + iterNames().map(function (n, i) { return opt(i, n, iterOf(m)); }).join('') + '</select></label></div>' +
         '<p class="note" id="m-who">' + esc(whoLabel(m)) + '</p>';
       foot = S.readOnly ? '' : '<button class="btn" type="button" data-d="left">← Eerder</button><button class="btn" type="button" data-d="right">Later →</button><span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
     } else if (sel.kind === 'o') {
@@ -375,7 +392,9 @@
       body = '<label class="field">Naam van de PI<input id="s-name" data-s="piName" type="text" placeholder="bijv. PI 2027.1" value="' + esc(s.piName || '') + '"' + ro + '></label>' +
         '<div class="two"><label class="field">Start iteratie 1<input id="s-start" data-s="piStart" type="date" value="' + esc(s.piStart) + '"' + ro + '></label>' +
         '<label class="field">Lengte iteratie<select id="s-weeks" data-s="iterationWeeks"' + ro + '>' + [1, 2, 3, 4].map(function (w) { return opt(w, w + (w === 1 ? ' week' : ' weken'), num(s.iterationWeeks) || 2); }).join('') + '</select></label></div>' +
-        '<p class="note">Het bord telt 4 iteraties, een IP-iteratie en een kolom voor de volgende PI. Deze instellingen gelden voor iedereen.</p>' +
+        '<div class="two"><label class="field">Aantal iteraties<select id="s-count" data-s="iterationCount"' + ro + '>' + [2, 3, 4, 5, 6].map(function (n) { return opt(n, n + ' iteraties', num(s.iterationCount) || 4); }).join('') + '</select></label>' +
+        '<label class="field">IP-iteratie<select id="s-ip" data-s="ipIteration"' + ro + '>' + opt('true', 'Ja, aparte IP-iteratie', String(s.ipIteration !== false)) + opt('false', 'Nee', String(s.ipIteration !== false)) + '</select></label></div>' +
+        '<p class="note">Na de laatste iteratie volgt altijd een kolom voor de volgende PI. Deze instellingen gelden voor iedereen.</p>' +
         (S.readOnly ? '' : '<div class="sec"><h3>Gegevens overnemen</h3><p class="note">Plak hier de tekst uit “Delen / importeren” van het eerdere canvas-bord. Outcomes en mijlpalen worden toegevoegd aan dit bord.</p>' +
         '<label class="field">Bordgegevens<textarea id="s-import" rows="6"></textarea></label><div class="actions"><button class="btn" type="button" data-d="import">Toevoegen aan bord</button><span class="msg" id="importMsg" role="status"></span></div></div>');
     }
@@ -466,7 +485,7 @@
   $('drawerRoot').addEventListener('input', function (e) {
     var el = e.target, sel = S.sel; if (!sel || !S.ready || S.readOnly) return;
     if (el.dataset.s) {
-      var v = el.dataset.s === 'iterationWeeks' ? num(el.value) : el.value;
+      var v = (el.dataset.s === 'iterationWeeks' || el.dataset.s === 'iterationCount') ? num(el.value) : el.dataset.s === 'ipIteration' ? el.value === 'true' : el.value;
       if (el.dataset.s === 'piStart' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
       var p = {}; p[el.dataset.s] = v; writeSettings(p, el.tagName === 'SELECT' ? 0 : 450); return;
     }
@@ -491,7 +510,7 @@
     if (!S.ready || S.readOnly || !sel) return;
     if (sel.kind === 'm') {
       var m = S.milestones[sel.id]; if (!m) return;
-      if (d === 'left' || d === 'right') { queue('milestones', sel.id, { iter: Math.max(0, Math.min(5, num(m.iter) + (d === 'left' ? -1 : 1))) }, 0); syncDrawer(); }
+      if (d === 'left' || d === 'right') { queue('milestones', sel.id, { iter: Math.max(0, Math.min(lastCol(), iterOf(m) + (d === 'left' ? -1 : 1))) }, 0); syncDrawer(); }
       else if (d === 'askdel') $('delZone').innerHTML = '<span class="confirm">Mijlpaal verwijderen? <button class="btn danger" type="button" data-d="del">Ja, verwijderen</button><button class="btn" type="button" data-d="nodel">Nee</button></span>';
       else if (d === 'nodel') $('delZone').innerHTML = '<button class="btn danger" type="button" data-d="askdel">Verwijderen</button>';
       else if (d === 'del') { delete pending['milestones/' + sel.id]; delete S.milestones[sel.id]; track(S.sb.from('milestones').delete().eq('id', sel.id)); S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Mijlpaal verwijderd.'); }
@@ -543,7 +562,7 @@
     });
     data.milestones.forEach(function (m) {
       var row = m.row === 'art' ? 'art' : map[m.row]; if (!row) return;
-      var id = rid('m'), body = Object.assign({ row: row, iter: Math.max(0, Math.min(5, num(m.iter))), title: String(m.title || ''), type: TYPES[m.type] ? m.type : 'learn', status: STATUS[m.status] ? m.status : 'planned', createdAt: now }, meta());
+      var id = rid('m'), body = Object.assign({ row: row, iter: Math.max(0, Math.min(lastCol(), num(m.iter))), title: String(m.title || ''), type: TYPES[m.type] ? m.type : 'learn', status: STATUS[m.status] ? m.status : 'planned', createdAt: now }, meta());
       S.milestones[id] = body; msRows.push(toRow(Object.assign({ id: id }, body)));
     });
     if (outRows.length) track(S.sb.from('outcomes').insert(outRows));
@@ -555,7 +574,7 @@
 
   /* ---------- laden + realtime ---------- */
   function overlay(col, id, body) { var p = pending[col + '/' + id]; return p ? Object.assign({}, body, p.patch) : body; }
-  function applySettings(r) { var v = fromRow(r); S.settings = { piStart: v.piStart || '2026-12-09', iterationWeeks: num(v.iterationWeeks) || 2, piName: v.piName || '' }; }
+  function applySettings(r) { var v = fromRow(r); S.settings = { piStart: v.piStart || '2026-12-09', iterationWeeks: num(v.iterationWeeks) || 2, piName: v.piName || '', iterationCount: num(v.iterationCount) || 4, ipIteration: v.ipIteration !== false }; }
 
   function loadAll() {
     return Promise.all([S.sb.from('outcomes').select('*'), S.sb.from('milestones').select('*'), S.sb.from('settings').select('*').eq('id', 'pi')]).then(function (res) {

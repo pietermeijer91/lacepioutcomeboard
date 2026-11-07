@@ -21,7 +21,7 @@ create table if not exists public.milestones (
   id          text primary key,
   row_ref     text not null,                         -- 'art' of het id van een outcome
   contrib_ref text not null default '',              -- id van de bijdrage (baan) binnen de outcome, '' = hele outcome
-  iter        integer not null default 0 check (iter between 0 and 5),
+  iter        integer not null default 0 check (iter between 0 and 9),
   title       text not null default '',
   type        text not null default 'learn' check (type in ('fixed','learn','sync','release')),
   status      text not null default 'planned' check (status in ('planned','done','risk','missed')),
@@ -38,6 +38,8 @@ create table if not exists public.settings (
   pi_start         date not null default '2026-12-09',
   iteration_weeks  integer not null default 2 check (iteration_weeks between 1 and 4),
   pi_name          text not null default '',
+  iteration_count  integer not null default 4 check (iteration_count between 2 and 6),
+  ip_iteration     boolean not null default true,
   updated_at       timestamptz not null default now(),
   updated_by       text
 );
