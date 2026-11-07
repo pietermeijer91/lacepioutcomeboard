@@ -20,6 +20,7 @@ create table if not exists public.outcomes (
 create table if not exists public.milestones (
   id          text primary key,
   row_ref     text not null,                         -- 'art' of het id van een outcome
+  contrib_ref text not null default '',              -- id van de bijdrage (baan) binnen de outcome, '' = hele outcome
   iter        integer not null default 0 check (iter between 0 and 5),
   title       text not null default '',
   type        text not null default 'learn' check (type in ('fixed','learn','sync','release')),
@@ -29,6 +30,8 @@ create table if not exists public.milestones (
   updated_by  text
 );
 create index if not exists milestones_row_ref_idx on public.milestones (row_ref);
+alter table public.milestones add column if not exists contrib_ref text not null default '';
+create index if not exists milestones_contrib_ref_idx on public.milestones (contrib_ref);
 
 create table if not exists public.settings (
   id               text primary key default 'pi',
