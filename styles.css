@@ -224,8 +224,8 @@ footer.legend span{display:inline-flex;align-items:center;gap:6px}
 /* slepen */
 @media (hover:hover){ .callout,.mdot{cursor:grab} }
 .callout.dragging,.mdot.dragging{opacity:.35}
-.ghost{position:fixed;z-index:40;pointer-events:none;margin:0;box-shadow:var(--shadow);cursor:grabbing;opacity:.95}
-.mdot.ghost{background:var(--surface)}
+.dragghost{position:fixed;z-index:40;pointer-events:none;margin:0;box-shadow:var(--shadow);cursor:grabbing;opacity:.95}
+.mdot.dragghost{background:var(--surface)}
 body.is-dragging{cursor:grabbing;user-select:none}
 body.is-dragging .cell .add{opacity:0}
 .cell.drop-over{background:var(--accent-soft);outline:2px dashed var(--accent);outline-offset:-3px}
@@ -239,3 +239,5 @@ body.is-dragging .cell .add{opacity:0}
 .row.compact:nth-of-type(odd){background:var(--surface)}
 .kn{color:var(--kn);font-weight:700}
 .krs .kt{font-size:14px;line-height:1.4}
+.addrow{display:flex;padding:12px 16px;border-top:1px solid var(--line)}
+.mini.edit{border-color:var(--accent-soft);background:var(--accent-soft)}

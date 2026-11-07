@@ -184,7 +184,8 @@
         var owners = cs.map(function (c) { return c.owner; }).filter(Boolean);
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
           '<div class="ocell" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
-          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + '</span></div>' +
+          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + '</span>' +
+          (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
           '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
           T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
           '</div>';
@@ -202,7 +203,7 @@
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
         '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
         '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
-        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">Outcome bewerken</button></div>') +
+        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button></div>') +
         (o.updatedAt ? '<span class="meta">' + esc(whoLabel(o)) + '</span>' : '') + '</div>';
 
       lanes.forEach(function (ln, idx) {
@@ -215,6 +216,7 @@
       });
       h += '</div>';
     });
+    if (!S.readOnly) h += '<div class="addrow"><button type="button" class="btn ghost" data-act="addoutcome">+ PI-outcome toevoegen</button></div>';
     $('board').style.setProperty('--cols', T.iters.length);
     $('board').innerHTML = h;
     var vt = $('btnView'); if (vt) { vt.textContent = S.expandAll ? 'Focus op één outcome' : 'Alles uitklappen'; vt.setAttribute('aria-pressed', String(!!S.expandAll)); }
@@ -282,6 +284,7 @@
     var a = b.dataset.act, id = b.dataset.id;
     if (a === 'ms') { var mm = S.milestones[id]; if (mm && mm.row !== 'art' && !S.expandAll) setFocus(mm.row); openDrawer({ kind: 'm', id: id }); }
     else if (a === 'edit') openDrawer({ kind: 'o', id: id });
+    else if (a === 'addoutcome' && S.ready && !S.readOnly) addOutcome();
     else if (a === 'focus') { setFocus(id); renderBoard(); }
     else if (a === 'unfocus') { setFocus('__none__'); renderBoard(); }
     else if (a === 'addms' && S.ready && !S.readOnly) addMs(b.dataset.row, num(b.dataset.iter), b.dataset.contrib);
@@ -310,7 +313,7 @@
       drag.on = true;
       var r = drag.src.getBoundingClientRect();
       var g = drag.src.cloneNode(true);
-      g.classList.add('ghost'); g.style.width = r.width + 'px';
+      g.classList.add('dragghost'); g.style.width = r.width + 'px';
       g.style.left = '0px'; g.style.top = '0px';
       drag.offX = e.clientX - r.left; drag.offY = e.clientY - r.top;
       document.body.appendChild(g); drag.ghost = g;
