@@ -1,16 +1,11 @@
 -- LACE PI Outcome-bord — database-schema voor Supabase
 -- Uitvoeren in Supabase: SQL Editor > New query > plak dit bestand > Run.
 
--- 1. Wie mag erbij? Pas het e-maildomein aan naar jullie eigen domein.
-create or replace function public.board_allowed()
-returns boolean
-language sql
-stable
-as $$
-  select coalesce(auth.jwt() ->> 'email', '') ilike '%@edsn.nl';
-$$;
+-- Let op: het bord heeft geen login. Iedereen die de URL en de anon key kent
+-- (die staan in config.js en dus in de pagina) kan het bord lezen en wijzigen.
+-- Zet er dus geen vertrouwelijke informatie op.
 
--- 2. Tabellen
+-- 1. Tabellen
 create table if not exists public.outcomes (
   id          text primary key,
   title       text not null default '',
@@ -44,24 +39,30 @@ create table if not exists public.settings (
   updated_by       text
 );
 
--- 3. Toegang: alleen ingelogde collega's met het juiste domein lezen en schrijven
+-- 2. Toegang: iedereen met de link leest en schrijft (geen login)
 alter table public.outcomes   enable row level security;
 alter table public.milestones enable row level security;
 alter table public.settings   enable row level security;
 
+-- (opruimen van een eventuele eerdere versie met login)
 drop policy if exists "team leest en schrijft outcomes" on public.outcomes;
-create policy "team leest en schrijft outcomes" on public.outcomes
-  for all to authenticated using (public.board_allowed()) with check (public.board_allowed());
-
 drop policy if exists "team leest en schrijft milestones" on public.milestones;
-create policy "team leest en schrijft milestones" on public.milestones
-  for all to authenticated using (public.board_allowed()) with check (public.board_allowed());
-
 drop policy if exists "team leest en schrijft settings" on public.settings;
-create policy "team leest en schrijft settings" on public.settings
-  for all to authenticated using (public.board_allowed()) with check (public.board_allowed());
+drop function if exists public.board_allowed();
 
--- 4. Live updates (Realtime) aanzetten
+drop policy if exists "open bord outcomes" on public.outcomes;
+create policy "open bord outcomes" on public.outcomes
+  for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists "open bord milestones" on public.milestones;
+create policy "open bord milestones" on public.milestones
+  for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists "open bord settings" on public.settings;
+create policy "open bord settings" on public.settings
+  for all to anon, authenticated using (true) with check (true);
+
+-- 3. Live updates (Realtime) aanzetten
 alter table public.outcomes   replica identity full;
 alter table public.milestones replica identity full;
 alter table public.settings   replica identity full;

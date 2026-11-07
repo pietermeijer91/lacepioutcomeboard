@@ -1,4 +1,4 @@
-/* LACE PI Outcome-bord — statische app op Supabase (database + realtime + login per e-mail). */
+/* LACE PI Outcome-bord — statische app op Supabase (database + realtime), zonder login. */
 (function () {
   'use strict';
 
@@ -30,13 +30,8 @@
   function diamond(type, size) { size = size || 14; var t = TYPES[type] || TYPES.learn; return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="3" width="8" height="8" transform="rotate(45 7 7)" fill="var(' + t.v + ')"></rect></svg>'; }
   var X_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"></path></svg>';
 
-  function myName() {
-    var u = S.session && S.session.user; if (!u) return null;
-    var m = u.user_metadata || {};
-    if (m.full_name) return m.full_name;
-    var local = String(u.email || '').split('@')[0];
-    return local ? local.split(/[._-]/).map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join(' ') : null;
-  }
+  var NAME_KEY = 'lace-pi-name-v1';
+  function myName() { var v = ($('myName') && $('myName').value || '').trim(); return v || null; }
 
   function setLive() {
     var el = $('live'), t = $('liveText');
@@ -209,7 +204,8 @@
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
   $('btnSettings').addEventListener('click', function () { openDrawer({ kind: 's' }); });
-  $('btnLogout').addEventListener('click', function () { flushAll(); S.sb.auth.signOut(); });
+  try { $('myName').value = localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
+  $('myName').addEventListener('input', function () { try { localStorage.setItem(NAME_KEY, $('myName').value.trim()); } catch (e) {} });
 
   /* ---------- zijpaneel ---------- */
   var lastFocus = null;
@@ -455,44 +451,15 @@
   }
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && S.ready) loadAll(); });
 
-  /* ---------- login ---------- */
-  function showGate(html) { $('app').hidden = true; var g = $('gate'); g.hidden = false; g.innerHTML = '<div class="gate">' + html + '</div>'; }
-
-  function showLogin() {
-    showGate('<p class="eyebrow">LACE</p><h1>PI Outcome-bord</h1><p class="sub">Log in met je werkmail. Je krijgt een link per e-mail; klik erop en je bent binnen.</p>' +
-      '<form id="loginForm"><label class="field" for="email">E-mailadres<input id="email" type="email" required autocomplete="email" placeholder="naam@organisatie.nl"></label>' +
-      '<button class="btn primary" type="submit">Stuur inloglink</button><span class="msg" id="loginMsg" role="status"></span></form>');
-    $('loginForm').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var email = $('email').value.trim(), msg = $('loginMsg');
-      msg.textContent = 'Versturen…';
-      S.sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: location.origin + location.pathname } }).then(function (r) {
-        msg.textContent = r.error ? 'Versturen mislukt: ' + r.error.message : 'Check je mail: de inloglink is verstuurd naar ' + email + '.';
-      });
-    });
-  }
-
-  var booted = false;
-  function startBoard() {
-    $('gate').hidden = true; $('app').hidden = false;
-    var u = S.session.user; $('who').textContent = u.email || '';
-    renderLegend(); renderAll();
-    if (!booted) { booted = true; subscribe(); }
-  }
-
+  /* ---------- start ---------- */
   var cfg = window.LACE_CONFIG || {};
   if (!window.supabase || !cfg.supabaseUrl || !cfg.supabaseAnonKey || /JOUW/.test(cfg.supabaseUrl)) {
-    showGate('<h1>Nog niet ingesteld</h1><p class="sub">Vul <code>config.js</code> met de URL en de anon key van je Supabase-project. Zie de README voor de stappen.</p>');
+    $('app').hidden = true; var g = $('gate'); g.hidden = false;
+    g.innerHTML = '<div class="gate"><h1>Nog niet ingesteld</h1><p class="sub">Vul <code>config.js</code> met de URL en de anon key van je Supabase-project. Zie de README voor de stappen.</p></div>';
     return;
   }
-  S.sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-  S.sb.auth.getSession().then(function (r) {
-    S.session = r.data.session;
-    if (S.session) startBoard(); else showLogin();
-  });
-  S.sb.auth.onAuthStateChange(function (event, session) {
-    S.session = session;
-    if (session && $('app').hidden) startBoard();
-    if (!session && event === 'SIGNED_OUT') { booted = false; S.sb.removeAllChannels(); S.ready = false; showLogin(); }
-  });
+  S.sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
+  $('app').hidden = false;
+  renderLegend(); renderAll();
+  subscribe();
 })();
