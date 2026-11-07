@@ -1,5 +1,5 @@
 /*
- * Snelle test van het bord in demomodus (geen echte database).
+ * Snelle test van het bord, de planner en de weekly sync in demomodus (geen echte database).
  *
  *   node test/smoke.js             # draait de checks
  *   node test/smoke.js --shot      # maakt ook test/screenshot.png
@@ -75,9 +75,62 @@ const shot = process.argv.includes('--shot');
     assert(await page.locator('#drawerRoot aside').count() === 0, 'zijpaneel opende na slepen');
   });
 
+  await check('mijlpaal toont gekoppelde taken', async () => {
+    assert((await page.locator('button.callout[data-id="m4"] .ctasks').innerText()).includes('/2 taken'), 'geen taakteller op kaartje');
+  });
+
+  await check('planner: tab openen en taak toevoegen', async () => {
+    await page.click('.tab[data-view="planner"]');
+    await page.waitForSelector('#planner .pgrid');
+    const before = await page.locator('#planner .tcard').count();
+    await page.click('#planner [data-pact="add"]');
+    await page.fill('#t-title', 'Smoke-taak');
+    await page.waitForTimeout(600);
+    await page.click('.dhead [data-d="close"]');
+    assert(await page.locator('#planner .tcard').count() === before + 1, 'taak niet toegevoegd');
+  });
+
+  await check('planner: taak verslepen naar Klaar', async () => {
+    const card = await page.locator('#planner .tcard[data-id="t2"]').boundingBox();
+    const target = await page.locator('#planner [data-tdrop-outcome="o1"][data-tdrop-status="done"]').boundingBox();
+    await page.mouse.move(card.x + card.width / 2, card.y + 12);
+    await page.mouse.down();
+    await page.mouse.move(card.x + card.width / 2 + 20, card.y + 20, { steps: 3 });
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    assert(await page.locator('#planner [data-tdrop-outcome="o1"][data-tdrop-status="done"] .tcard[data-id="t2"]').count() === 1, 'taak niet verplaatst');
+  });
+
+  await check('planner: filter vastgelopen', async () => {
+    await page.click('#planner [data-pf="blocked"]');
+    const ids = await page.locator('#planner .tcard').evaluateAll((els) => els.map((e) => e.dataset.id));
+    assert(ids.includes('t3') && !ids.includes('t1'), 'filter klopt niet: ' + ids.join(','));
+    await page.click('#planner [data-pf="blocked"]');
+  });
+
+  await check('weekly sync: check-in en volgende outcome', async () => {
+    await page.click('.tab[data-view="sync"]');
+    await page.waitForSelector('#sync .sgrid');
+    await page.selectOption('#sync-ci-conf', '5');
+    await page.fill('#sync-ci-note', 'Sync-test');
+    await page.click('#sync [data-sact="checkin"]');
+    await page.waitForTimeout(100);
+    assert((await page.locator('#sync .okmsg').first().innerText()).includes('ingecheckt'), 'check-in niet verwerkt');
+    await page.click('#sync [data-sact="next"]');
+    assert((await page.locator('#sync .shead h2').innerText()).includes('PI Planning in één dag'), 'niet naar volgende outcome');
+    await page.click('.tab[data-view="board"]');
+  });
+
   await check('geen JavaScript-fouten', async () => { assert(errors.length === 0, errors.join(' | ')); });
 
-  if (shot) await page.screenshot({ path: path.join(__dirname, 'screenshot.png'), fullPage: true });
+  if (shot) {
+    await page.screenshot({ path: path.join(__dirname, 'screenshot.png'), fullPage: true });
+    await page.click('.tab[data-view="planner"]'); await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(__dirname, 'screenshot-planner.png'), fullPage: true });
+    await page.click('.tab[data-view="sync"]'); await page.click('#sync [data-sact="go"][data-i="0"]'); await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(__dirname, 'screenshot-sync.png'), fullPage: true });
+  }
   await browser.close();
 
   results.forEach((r) => console.log(r[0] + '  ' + r[1]));

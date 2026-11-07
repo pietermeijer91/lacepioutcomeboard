@@ -40,17 +40,17 @@
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
 
-  var S = { sb: null, session: null, ready: false, outcomes: {}, milestones: {}, settings: { piStart: '2026-12-09', iterationWeeks: 2, piName: '', iterationCount: 4, ipIteration: true }, open: {}, sel: null, readOnly: false };
+  var S = { sb: null, session: null, ready: false, outcomes: {}, milestones: {}, tasks: {}, view: 'board', pf: {}, syncIdx: 0, settings: { piStart: '2026-12-09', iterationWeeks: 2, piName: '', iterationCount: 4, ipIteration: true }, open: {}, sel: null, readOnly: false };
   var pending = {};
   var saving = 0;
 
-  try { var vw = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; S.focus = vw.focus || null; S.expandAll = !!vw.expandAll; } catch (e) {}
-  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ focus: S.focus, expandAll: S.expandAll })); } catch (e) {} }
+  try { var vw = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; S.focus = vw.focus || null; S.expandAll = !!vw.expandAll; S.pf = vw.pf || {}; } catch (e) {}
+  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ focus: S.focus, expandAll: S.expandAll, pf: S.pf })); } catch (e) {} }
   function setFocus(id) { S.focus = id; saveView(); }
 
   function $(id) { return document.getElementById(id); }
@@ -120,7 +120,7 @@
   }
 
   /* ---------- weergave ---------- */
-  function renderAll() { renderHeader(); renderBoard(); setLive(); syncDrawer(); }
+  function renderAll() { renderHeader(); renderViews(); setLive(); syncDrawer(); }
 
   function renderHeader() {
     var T = timeInfo();
@@ -164,7 +164,12 @@
     var title = m.title || '(zonder titel)';
     return '<button type="button" class="callout s-' + s.cls + (sel ? ' sel' : '') + '" style="--mc:var(' + t.v + ')" data-act="ms" data-id="' + esc(m.id) + '" aria-label="' + esc(t.l + ' mijlpaal: ' + title + ', ' + s.label) + '">' +
       '<span class="dia" aria-hidden="true"></span><span class="ctitle">' + esc(title) + '</span>' +
-      '<span class="cstat">' + s.icon + esc(s.label) + (m.decision ? ' · ' + DECISION[m.decision] : '') + '</span>' + (m.learning ? '<span class="clearn" title="' + esc(m.learning) + '">Leerpunt vastgelegd</span>' : '') + '</button>';
+      '<span class="cstat">' + s.icon + esc(s.label) + (m.decision ? ' · ' + DECISION[m.decision] : '') + '</span>' + (m.learning ? '<span class="clearn" title="' + esc(m.learning) + '">Leerpunt vastgelegd</span>' : '') + taskBadge(m) + '</button>';
+  }
+  function taskBadge(m) {
+    var tk = tasksFor(m.id); if (!tk.length) return '';
+    var d = tk.filter(function (t) { return t.status === 'done'; }).length;
+    return '<span class="ctasks' + (d === tk.length ? ' all' : '') + '">' + d + '/' + tk.length + ' taken</span>';
   }
   function msDot(m, T) {
     var t = TYPES[m.type] || TYPES.learn, s = msState(m, T);
@@ -293,6 +298,7 @@
   function check(res) {
     if (res && res.error) {
       var e = res.error;
+      if (/tasks|outcome_ref|milestone_ref/.test(e.message || '')) { toast('De planner is nog niet geactiveerd. Voer supabase/migrations/005_planner_taken.sql uit in Supabase.'); return; }
       if (/hypothesis|commitment|bv_planned|bv_actual|checkins|learning|decision/.test(e.message || '')) { toast('De database mist nog kolommen. Voer supabase/migrations/004_outcome_based_lace.sql uit in Supabase.'); return; }
       if (/iteration_count|ip_iteration|iter_check/.test(e.message || '')) { toast('De database mist nog een aanpassing. Voer supabase/migrations/003_iteraties_instelbaar.sql uit in Supabase.'); return; }
       if (/contrib_ref/.test(e.message || '')) { toast('De database mist nog een kolom. Voer supabase/migrations/002_bijdrage_koppeling.sql uit in Supabase.'); return; }
@@ -301,7 +307,7 @@
     }
   }
   function track(promise) { saving++; setLive(); return Promise.resolve(promise).then(check, function () { toast('Opslaan mislukt. Controleer je verbinding en probeer het opnieuw.'); }).then(function () { saving--; setLive(); }); }
-  function storeFor(col) { return col === 'outcomes' ? S.outcomes : S.milestones; }
+  function storeFor(col) { return col === 'outcomes' ? S.outcomes : col === 'tasks' ? S.tasks : S.milestones; }
   function queue(col, id, patch, delay) {
     var k = col + '/' + id;
     var p = pending[k] || (pending[k] = { col: col, id: id, patch: {}, t: null });
@@ -310,7 +316,7 @@
     if (store[id]) store[id] = Object.assign({}, store[id], patch);
     clearTimeout(p.t);
     p.t = setTimeout(function () { flush(k); }, delay == null ? 450 : delay);
-    renderHeader(); renderBoard(); setLive();
+    renderHeader(); renderViews(); setLive();
   }
   function flush(k) {
     var p = pending[k]; if (!p) return; delete pending[k]; clearTimeout(p.t);
@@ -319,6 +325,12 @@
   function flushAll() { Object.keys(pending).forEach(flush); }
   window.addEventListener('pagehide', flushAll);
 
+  function unlinkTasks(field, id) {
+    if (S.tasksMissing) return;
+    var patch = field === 'outcome' ? { outcome: '', milestone: '' } : { milestone: '' };
+    taskList().forEach(function (t) { if (t[field] === id) S.tasks[t.id] = Object.assign({}, S.tasks[t.id], patch); });
+    track(S.sb.from('tasks').update(toRow(patch)).eq(field === 'outcome' ? 'outcome_ref' : 'milestone_ref', id));
+  }
   function insert(col, id, body) {
     storeFor(col)[id] = body;
     return track(S.sb.from(col).insert(toRow(Object.assign({ id: id }, body))));
@@ -346,12 +358,12 @@
     else if (a === 'edit') openDrawer({ kind: 'o', id: id });
     else if (a === 'addoutcome' && S.ready && !S.readOnly) addOutcome();
     else if (a === 'checkin') { openDrawer({ kind: 'o', id: id }); var cf = $('ci-conf'); if (cf) { cf.scrollIntoView({ block: 'center' }); cf.focus(); } }
-    else if (a === 'focus') { setFocus(id); renderBoard(); }
-    else if (a === 'unfocus') { setFocus('__none__'); renderBoard(); }
+    else if (a === 'focus') { setFocus(id); renderViews(); }
+    else if (a === 'unfocus') { setFocus('__none__'); renderViews(); }
     else if (a === 'addms' && S.ready && !S.readOnly) addMs(b.dataset.row, num(b.dataset.iter), b.dataset.contrib);
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
-  $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderBoard(); });
+  $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderViews(); });
   $('btnSettings').addEventListener('click', function () { openDrawer({ kind: 's' }); });
   try { $('myName').value = localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
   $('myName').addEventListener('input', function () { try { localStorage.setItem(NAME_KEY, $('myName').value.trim()); } catch (e) {} });
@@ -360,11 +372,13 @@
   var drag = { id: null, src: null, ghost: null, sx: 0, sy: 0, on: false, over: null, suppress: false };
   function dropCellAt(x, y) {
     var el = document.elementFromPoint(x, y);
-    return el ? el.closest('[data-drop-row]') : null;
+    if (!el) return null;
+    return drag.kind === 't' ? el.closest('[data-tdrop-status]') : el.closest('[data-drop-row]');
   }
-  $('board').addEventListener('pointerdown', function (e) {
+  document.addEventListener('pointerdown', function (e) {
     if (e.pointerType === 'touch' || e.button !== 0 || S.readOnly || !S.ready) return;
-    var b = e.target.closest('.callout,.mdot'); if (!b) return;
+    var b = e.target.closest('#board .callout, #board .mdot, #planner .tcard'); if (!b) return;
+    drag.kind = b.classList.contains('tcard') ? 't' : 'm';
     drag.id = b.dataset.id; drag.src = b; drag.sx = e.clientX; drag.sy = e.clientY; drag.on = false;
   });
   window.addEventListener('pointermove', function (e) {
@@ -384,7 +398,8 @@
     drag.ghost.style.transform = 'translate(' + (e.clientX - drag.offX) + 'px,' + (e.clientY - drag.offY) + 'px)';
     var c = dropCellAt(e.clientX, e.clientY);
     if (c !== drag.over) { if (drag.over) drag.over.classList.remove('drop-over'); drag.over = c; if (c) c.classList.add('drop-over'); }
-    var box = $('board').parentNode, br = box.getBoundingClientRect();
+    var box = drag.kind === 't' ? document.querySelector('#planner .pbox') : $('board').parentNode; if (!box) return;
+    var br = box.getBoundingClientRect();
     if (e.clientX > br.right - 40) box.scrollLeft += 12; else if (e.clientX < br.left + 40) box.scrollLeft -= 12;
   });
   function endDrag(e, cancel) {
@@ -398,6 +413,16 @@
     if (!was) return;
     drag.suppress = true; setTimeout(function () { drag.suppress = false; }, 0);
     if (cancel || !c) return;
+    if (drag.kind === 't') {
+      var tk = S.tasks[id]; if (!tk) return;
+      var to = c.dataset.tdropOutcome, ts = c.dataset.tdropStatus;
+      if ((tk.outcome || '') === to && tk.status === ts) return;
+      var tp = { outcome: to, status: ts, order: Date.now() };
+      if ((tk.outcome || '') !== to) tp.milestone = '';
+      queue('tasks', id, tp, 0); syncDrawer();
+      toast('Taak naar ' + TSTATUS[ts] + (tp.milestone === '' && tk.milestone ? ' (mijlpaal losgekoppeld)' : '') + '.');
+      return;
+    }
     var m = S.milestones[id]; if (!m) return;
     var row = c.dataset.dropRow, iter = num(c.dataset.dropIter), contrib = c.dataset.dropContrib;
     if (contrib === '*') contrib = m.row === row ? (m.contrib || '') : '';
@@ -413,10 +438,32 @@
 
   /* ---------- zijpaneel ---------- */
   var lastFocus = null;
-  function openDrawer(sel) { flushAll(); lastFocus = document.activeElement; S.sel = sel; buildDrawer(); renderBoard(); }
-  function closeDrawer() { flushAll(); S.sel = null; $('drawerRoot').innerHTML = ''; renderBoard(); if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); }
+  function openDrawer(sel) { flushAll(); lastFocus = document.activeElement; S.sel = sel; buildDrawer(); renderViews(); }
+  function closeDrawer() { flushAll(); S.sel = null; $('drawerRoot').innerHTML = ''; renderViews(); if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.sel) closeDrawer(); });
 
+  function msOptions(outcomeId, cur) {
+    var list = msList().filter(function (m) { return outcomeId ? m.row === outcomeId : m.row === 'art'; });
+    var names = iterNames();
+    return opt('', 'Geen', cur) + list.map(function (m) { return opt(m.id, (m.title || '(zonder titel)') + ' · ' + (names[iterOf(m)] || ''), cur); }).join('');
+  }
+  function renderMsTasks() {
+    var el = $('mTasks'); if (!el || !S.sel) return;
+    var tk = tasksFor(S.sel.id);
+    el.innerHTML = tk.map(function (t) { return '<li><button type="button" class="srow" data-d="opentask" data-id="' + esc(t.id) + '"><span class="tstat s-' + esc(t.status) + '">' + TSTATUS[t.status] + '</span><span class="st">' + esc(t.title || '') + '</span><span class="meta">' + esc(t.owner || '') + '</span></button></li>'; }).join('') ||
+      '<li class="note">' + (S.tasksMissing ? 'De planner is nog niet geactiveerd.' : 'Nog geen taken gekoppeld.') + '</li>';
+  }
+  function renderCkList(force) {
+    var t = S.tasks[S.sel.id], el = $('ckList'); if (!t || !el) return;
+    var ck = Array.isArray(t.checklist) ? t.checklist : [];
+    if (!force && el.dataset.sig === sig(ck)) {
+      el.querySelectorAll('[data-ck]').forEach(function (inp) { if (inp === document.activeElement) return; var it = ck.find(function (x) { return x.id === inp.dataset.ck; }); if (!it) return; if (inp.type === 'checkbox') inp.checked = !!it.done; else if (inp.value !== (it.text || '')) inp.value = it.text || ''; });
+      return;
+    }
+    var ro = S.readOnly ? ' disabled' : '';
+    el.dataset.sig = sig(ck);
+    el.innerHTML = ck.map(function (c) { var id = esc(c.id); return '<li><input type="checkbox" aria-label="Afgevinkt" data-ck="' + id + '" data-ckf="done"' + (c.done ? ' checked' : '') + ro + '><input type="text" aria-label="Checklistpunt" data-ck="' + id + '" data-ckf="text" value="' + esc(c.text || '') + '"' + ro + '>' + (S.readOnly ? '' : '<button type="button" class="x" aria-label="Punt verwijderen" data-d="delck" data-id="' + id + '">' + X_ICON + '</button>') + '</li>'; }).join('') || '<li class="note">Nog geen punten.</li>';
+  }
   function contribOptions(rowId, cur) {
     if (rowId === 'art') return opt('', '— (ART-mijlpaal)', '');
     var o = S.outcomes[rowId], cs = o && Array.isArray(o.contribs) ? o.contribs : [];
@@ -441,8 +488,23 @@
         '<div class="sec"><h3>Leerpunt</h3><p class="note">Vooral bij leermijlpalen: wat hebben we geleerd, en wat doen we ermee?</p>' +
         '<label class="field">Wat hebben we geleerd?<textarea class="prose" id="m-learning" data-f="learning" rows="3" placeholder="bijv. RTE\'s gebruiken het dashboard alleen als het in de ART-sync zit"' + ro + '>' + esc(m.learning || '') + '</textarea></label>' +
         '<label class="field">Besluit<select id="m-decision" data-f="decision"' + ro + '>' + Object.keys(DECISION).map(function (k) { return opt(k, DECISION[k], m.decision || ''); }).join('') + '</select></label></div>' +
+        '<div class="sec"><h3>Taken</h3><ul id="mTasks" class="mtasks"></ul>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addtask" style="align-self:flex-start">+ Taak voor deze mijlpaal</button>') + '</div>' +
         '<p class="note" id="m-who">' + esc(whoLabel(m)) + '</p>';
       foot = S.readOnly ? '' : '<button class="btn" type="button" data-d="left">← Eerder</button><button class="btn" type="button" data-d="right">Later →</button><span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
+    } else if (sel.kind === 't') {
+      var t = S.tasks[sel.id]; if (!t) { closeDrawer(); return; }
+      title = 'Taak';
+      body = '<label class="field">Taak<input id="t-title" class="big" data-f="title" type="text" value="' + esc(t.title) + '"' + ro + '></label>' +
+        '<div class="two"><label class="field">Status<select id="t-status" data-f="status"' + ro + '>' + Object.keys(TSTATUS).map(function (k) { return opt(k, TSTATUS[k], t.status || 'todo'); }).join('') + '</select></label>' +
+        '<label class="field">Wie<input id="t-owner" data-f="owner" type="text" list="ownerListD" value="' + esc(t.owner || '') + '" placeholder="Naam"' + ro + '></label>' +
+        '<label class="field">Outcome<select id="t-outcome" data-f="outcome"' + ro + '>' + opt('', 'Run & overig', t.outcome || '') + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', t.outcome || ''); }).join('') + '</select></label>' +
+        '<label class="field">Mijlpaal<select id="t-milestone" data-f="milestone"' + ro + '>' + msOptions(t.outcome || '', t.milestone || '') + '</select></label>' +
+        '<label class="field">Iteratie<select id="t-iter" data-f="iter"' + ro + '>' + opt('', 'Geen', t.iter == null ? '' : t.iter) + iterNames().map(function (n, i) { return opt(i, n, t.iter == null ? '' : t.iter); }).join('') + '</select></label></div>' +
+        '<div class="sec"><h3>Checklist</h3><ul id="ckList" class="cklist"></ul>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addck" style="align-self:flex-start">+ Punt</button>') + '</div>' +
+        '<label class="field">Notities<textarea class="prose" id="t-notes" data-f="notes" rows="4"' + ro + '>' + esc(t.notes || '') + '</textarea></label>' +
+        '<datalist id="ownerListD">' + knownOwners().map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
+        '<p class="note" id="t-who">' + esc(whoLabel(t)) + '</p>';
+      foot = S.readOnly ? '' : '<span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
     } else if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) { closeDrawer(); return; }
       title = 'PI-outcome';
@@ -478,6 +540,8 @@
       '<div class="dhead"><h2 id="dTitle">' + title + '</h2><button class="btn" type="button" data-d="close">Klaar</button></div>' +
       '<div class="dbody">' + body + '</div>' + (foot ? '<div class="dfoot">' + foot + '</div>' : '') + '</aside>';
     if (sel.kind === 'o') { renderKrList(true); renderCList(true); renderCiList(true); }
+    if (sel.kind === 't') renderCkList(true);
+    if (sel.kind === 'm') renderMsTasks();
     var first = r.querySelector('input,select'); if (first) first.focus();
   }
 
@@ -554,6 +618,12 @@
       var m = S.milestones[sel.id]; if (!m) { closeDrawer(); toast('Deze mijlpaal is verwijderd.'); return; }
       r.querySelectorAll('[data-f]').forEach(function (el) { if (el !== document.activeElement) { var v = el.dataset.f === 'iter' ? String(num(m.iter)) : (m[el.dataset.f] == null ? '' : m[el.dataset.f]); if (String(el.value) !== String(v)) el.value = v; } });
       var w = $('m-who'); if (w) w.textContent = whoLabel(m);
+      renderMsTasks();
+    } else if (sel.kind === 't') {
+      var t = S.tasks[sel.id]; if (!t) { closeDrawer(); toast('Deze taak is verwijderd.'); return; }
+      r.querySelectorAll('[data-f]').forEach(function (el) { if (el === document.activeElement) return; var v = t[el.dataset.f]; v = v == null ? '' : v; if (String(el.value) !== String(v)) el.value = v; });
+      renderCkList(false);
+      var w3 = $('t-who'); if (w3) w3.textContent = whoLabel(t);
     } else if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) { closeDrawer(); toast('Deze outcome is verwijderd.'); return; }
       r.querySelectorAll('.dbody > .field [data-f], .dbody > .three [data-f]').forEach(function (el) {
@@ -570,7 +640,7 @@
 
   var settingsTimer = null;
   function writeSettings(patch, delay) {
-    Object.assign(S.settings, patch); renderHeader(); renderBoard();
+    Object.assign(S.settings, patch); renderHeader(); renderViews();
     clearTimeout(settingsTimer);
     settingsTimer = setTimeout(function () { track(S.sb.from('settings').upsert(toRow(Object.assign({ id: 'pi' }, S.settings, meta())))); }, delay == null ? 450 : delay);
   }
@@ -581,6 +651,22 @@
       var v = (el.dataset.s === 'iterationWeeks' || el.dataset.s === 'iterationCount') ? num(el.value) : el.dataset.s === 'ipIteration' ? el.value === 'true' : el.value;
       if (el.dataset.s === 'piStart' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
       var p = {}; p[el.dataset.s] = v; writeSettings(p, el.tagName === 'SELECT' ? 0 : 450); return;
+    }
+    if (sel.kind === 't') {
+      var tk = S.tasks[sel.id]; if (!tk) return;
+      if (el.dataset.ck) {
+        if (el.type === 'checkbox') return;
+        var ck = clone(tk.checklist || []); ck.forEach(function (c) { if (c.id === el.dataset.ck) c.text = el.value; });
+        queue('tasks', sel.id, { checklist: ck }); return;
+      }
+      if (el.dataset.f) {
+        var pt = {}, ft = el.dataset.f;
+        pt[ft] = ft === 'iter' ? (el.value === '' ? null : num(el.value)) : el.value;
+        if (ft === 'outcome') { pt.milestone = ''; var msel = $('t-milestone'); if (msel) msel.innerHTML = msOptions(el.value, ''); }
+        if (ft === 'milestone' && el.value) { var mm0 = S.milestones[el.value]; if (mm0 && (tk.iter == null || tk.iter === '')) { pt.iter = iterOf(mm0); var isel = $('t-iter'); if (isel) isel.value = String(pt.iter); } }
+        queue('tasks', sel.id, pt, el.tagName === 'SELECT' ? 0 : 450);
+      }
+      return;
     }
     if (sel.kind === 'm' && el.dataset.f) {
       var pm = {}; pm[el.dataset.f] = el.dataset.f === 'iter' ? num(el.value) : el.value;
@@ -602,17 +688,36 @@
     }
   });
 
+  $('drawerRoot').addEventListener('change', function (e) {
+    var el = e.target, sel = S.sel;
+    if (!sel || sel.kind !== 't' || el.type !== 'checkbox' || !el.dataset.ck || S.readOnly) return;
+    var tk = S.tasks[sel.id]; if (!tk) return;
+    var ck = clone(tk.checklist || []); ck.forEach(function (c) { if (c.id === el.dataset.ck) c.done = el.checked; });
+    queue('tasks', sel.id, { checklist: ck }, 0);
+  });
+
   $('drawerRoot').addEventListener('click', function (e) {
     var b = e.target.closest('[data-d]'); if (!b) return;
     var d = b.dataset.d, sel = S.sel;
     if (d === 'close') return closeDrawer();
     if (!S.ready || S.readOnly || !sel) return;
+    if (d === 'opentask') { openDrawer({ kind: 't', id: b.dataset.id }); return; }
+    if (sel.kind === 't') {
+      var tk = S.tasks[sel.id]; if (!tk) return;
+      if (d === 'addck') { var ck = clone(tk.checklist || []); ck.push({ id: rid('k'), text: '', done: false }); queue('tasks', sel.id, { checklist: ck }, 0); renderCkList(true); var ci2 = $('ckList').querySelectorAll('input[data-ckf="text"]'); if (ci2.length) ci2[ci2.length - 1].focus(); }
+      else if (d === 'delck') { queue('tasks', sel.id, { checklist: (tk.checklist || []).filter(function (c) { return c.id !== b.dataset.id; }) }, 0); renderCkList(true); }
+      else if (d === 'askdel') $('delZone').innerHTML = '<span class="confirm">Taak verwijderen? <button class="btn danger" type="button" data-d="del">Ja, verwijderen</button><button class="btn" type="button" data-d="nodel">Nee</button></span>';
+      else if (d === 'nodel') $('delZone').innerHTML = '<button class="btn danger" type="button" data-d="askdel">Verwijderen</button>';
+      else if (d === 'del') { delete pending['tasks/' + sel.id]; delete S.tasks[sel.id]; track(S.sb.from('tasks').delete().eq('id', sel.id)); S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Taak verwijderd.'); }
+      return;
+    }
     if (sel.kind === 'm') {
       var m = S.milestones[sel.id]; if (!m) return;
+      if (d === 'addtask') { addTask({ outcome: m.row === 'art' ? '' : m.row, milestone: m.id, iter: iterOf(m) }); return; }
       if (d === 'left' || d === 'right') { queue('milestones', sel.id, { iter: Math.max(0, Math.min(lastCol(), iterOf(m) + (d === 'left' ? -1 : 1))) }, 0); syncDrawer(); }
       else if (d === 'askdel') $('delZone').innerHTML = '<span class="confirm">Mijlpaal verwijderen? <button class="btn danger" type="button" data-d="del">Ja, verwijderen</button><button class="btn" type="button" data-d="nodel">Nee</button></span>';
       else if (d === 'nodel') $('delZone').innerHTML = '<button class="btn danger" type="button" data-d="askdel">Verwijderen</button>';
-      else if (d === 'del') { delete pending['milestones/' + sel.id]; delete S.milestones[sel.id]; track(S.sb.from('milestones').delete().eq('id', sel.id)); S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Mijlpaal verwijderd.'); }
+      else if (d === 'del') { unlinkTasks('milestone', sel.id); delete pending['milestones/' + sel.id]; delete S.milestones[sel.id]; track(S.sb.from('milestones').delete().eq('id', sel.id)); S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Mijlpaal verwijderd.'); }
       return;
     }
     if (sel.kind === 'o') {
@@ -643,6 +748,7 @@
       else if (d === 'del') {
         var oid = sel.id; delete pending['outcomes/' + oid]; delete S.outcomes[oid];
         msList().filter(function (x) { return x.row === oid; }).forEach(function (x) { delete S.milestones[x.id]; delete pending['milestones/' + x.id]; });
+        unlinkTasks('outcome', oid);
         track(S.sb.from('milestones').delete().eq('row_ref', oid));
         track(S.sb.from('outcomes').delete().eq('id', oid));
         S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Outcome verwijderd.');
@@ -677,6 +783,226 @@
     renderAll();
   }
 
+  /* ---------- weergaven (tabs) ---------- */
+  var VIEWS = { board: 'viewBoard', planner: 'viewPlanner', sync: 'viewSync' };
+  function setView(v, fromHash) {
+    if (!VIEWS[v]) v = 'board';
+    S.view = v;
+    Object.keys(VIEWS).forEach(function (k) { $(VIEWS[k]).hidden = k !== v; });
+    document.querySelectorAll('.tab').forEach(function (t) { if (t.dataset.view === v) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
+    if (!fromHash) { try { history.replaceState(null, '', v === 'board' ? location.pathname + location.search : '#' + v); } catch (e) {} }
+    if (v !== 'sync') stopTimer();
+    renderViews();
+  }
+  document.querySelector('.tabs').addEventListener('click', function (e) { var t = e.target.closest('.tab'); if (t) setView(t.dataset.view); });
+  window.addEventListener('hashchange', function () { setView(location.hash.slice(1) || 'board', true); });
+
+  function renderViews() {
+    renderBoard();
+    if (S.view === 'planner') renderPlanner();
+    if (S.view === 'sync') renderSync();
+  }
+
+  /* ---------- taken ---------- */
+  var TSTATUS = { todo: 'Te doen', doing: 'Bezig', waiting: 'Wacht op', done: 'Klaar' };
+  var WIP_LIMIT = 3;
+  function taskList() { return Object.keys(S.tasks).map(function (id) { return Object.assign({ id: id }, S.tasks[id]); }).sort(function (a, b) { return num(a.order) - num(b.order) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')); }); }
+  function tasksFor(mid) { return taskList().filter(function (t) { return t.milestone === mid; }); }
+  function taskLate(t, T) { return t.status !== 'done' && t.iter != null && t.iter !== '' && T.nowIdx >= 0 && num(t.iter) < T.nowIdx; }
+  function ownerKey(s) { return String(s || '').trim().toLowerCase(); }
+  function knownOwners() {
+    var set = {};
+    sortedOutcomes().forEach(function (o) { (o.contribs || []).forEach(function (c) { if (c.owner) set[c.owner] = 1; }); });
+    taskList().forEach(function (t) { if (t.owner) set[t.owner] = 1; });
+    var me = myName(); if (me) set[me] = 1;
+    return Object.keys(set).sort();
+  }
+  function addTask(d) {
+    if (S.tasksMissing) { toast('De planner is nog niet geactiveerd. Voer supabase/migrations/005_planner_taken.sql uit in Supabase.'); return; }
+    var id = rid('t');
+    insert('tasks', id, Object.assign({ title: 'Nieuwe taak', outcome: '', milestone: '', owner: myName() || '', status: 'todo', iter: null, checklist: [], notes: '', order: Date.now(), createdAt: new Date().toISOString() }, d || {}, meta()));
+    openDrawer({ kind: 't', id: id });
+  }
+  function tcard(t, T) {
+    var ck = Array.isArray(t.checklist) ? t.checklist : [], ckDone = ck.filter(function (c) { return c.done; }).length;
+    var m = t.milestone ? S.milestones[t.milestone] : null;
+    var late = taskLate(t, T), sel = S.sel && S.sel.kind === 't' && S.sel.id === t.id;
+    var names = iterNames();
+    return '<button type="button" class="tcard' + (late ? ' late' : '') + (t.status === 'done' ? ' done' : '') + (sel ? ' sel' : '') + '" data-pact="task" data-id="' + esc(t.id) + '">' +
+      '<span class="tt">' + esc(t.title || '(zonder titel)') + '</span>' +
+      (m ? '<span class="tms">' + diamond(m.type, 10) + esc(m.title || '') + '</span>' : '') +
+      '<span class="tmeta">' + (t.owner ? '<span class="who-chip">' + esc(t.owner) + '</span>' : '<span class="who-chip empty">Niemand</span>') +
+      (t.iter != null && t.iter !== '' ? '<span>' + esc(names[num(t.iter)] || '') + '</span>' : '') +
+      (ck.length ? '<span class="num">☑ ' + ckDone + '/' + ck.length + '</span>' : '') +
+      (t.notes ? '<span>notitie</span>' : '') +
+      (late ? '<span class="late-l">Te laat</span>' : '') + '</span></button>';
+  }
+
+  function plannerFilter(t, T) {
+    var f = S.pf || {};
+    if (f.mine) { var me = ownerKey(myName()); if (!me || ownerKey(t.owner) !== me) return false; }
+    if (f.iter && !(t.iter != null && t.iter !== '' && num(t.iter) === T.nowIdx)) return false;
+    if (f.blocked && !(t.status === 'waiting' || taskLate(t, T))) return false;
+    if (f.outcome && (t.outcome || '') !== (f.outcome === '_run' ? '' : f.outcome)) return false;
+    return true;
+  }
+
+  function renderPlanner() {
+    var el = $('planner'); if (!el) return;
+    if (!S.ready) { el.innerHTML = '<div class="empty">Planner laden…</div>'; return; }
+    if (S.tasksMissing) {
+      el.innerHTML = '<div class="empty"><b>De planner is nog niet geactiveerd.</b> Voer in Supabase het script <code>supabase/migrations/005_planner_taken.sql</code> uit en herlaad de pagina.</div>';
+      return;
+    }
+    var T = timeInfo(), f = S.pf || {}, outs = sortedOutcomes(), all = taskList();
+    var rows = outs.map(function (o) { return { id: o.id, title: o.title || '(zonder titel)' }; }).concat([{ id: '', title: 'Run & overig', run: true }]);
+    if (f.outcome) rows = rows.filter(function (r) { return f.outcome === '_run' ? r.run : r.id === f.outcome; });
+    var shown = all.filter(function (t) { return plannerFilter(t, T); });
+    var wip = {}; all.forEach(function (t) { if (t.status === 'doing' && t.owner) { var k = t.owner; wip[k] = (wip[k] || 0) + 1; } });
+    var over = Object.keys(wip).filter(function (k) { return wip[k] > WIP_LIMIT; });
+    var counts = {}; Object.keys(TSTATUS).forEach(function (s) { counts[s] = shown.filter(function (t) { return t.status === s; }).length; });
+
+    var h = '<div class="ptools">' +
+      '<div class="seg" role="group" aria-label="Filters">' +
+      '<button type="button" class="chipbtn" data-pf="mine" aria-pressed="' + !!f.mine + '">Mijn taken</button>' +
+      '<button type="button" class="chipbtn" data-pf="iter" aria-pressed="' + !!f.iter + '">Deze iteratie</button>' +
+      '<button type="button" class="chipbtn" data-pf="blocked" aria-pressed="' + !!f.blocked + '">Vastgelopen of te laat</button></div>' +
+      '<label class="pfield" for="pf-outcome">Outcome <select id="pf-outcome">' + opt('', 'Alle outcomes', f.outcome || '') + outs.map(function (o) { return opt(o.id, o.title || '(zonder titel)', f.outcome || ''); }).join('') + opt('_run', 'Run & overig', f.outcome || '') + '</select></label>' +
+      '<span style="flex:1"></span>' +
+      (S.readOnly ? '' : '<button type="button" class="btn primary" data-pact="add">+ Taak</button>') + '</div>';
+    if (over.length) h += '<p class="wipwarn">Te veel tegelijk: ' + over.map(function (k) { return esc(k) + ' heeft ' + wip[k] + ' taken bezig'; }).join(', ') + ' (afspraak: maximaal ' + WIP_LIMIT + ').</p>';
+    if (f.mine && !myName()) h += '<p class="wipwarn">Vul rechtsboven je naam in om je eigen taken te zien.</p>';
+
+    h += '<div class="pbox"><div class="pgrid">' +
+      '<div class="ph">Outcome</div>' + Object.keys(TSTATUS).map(function (s) { return '<div class="ph s-' + s + '">' + TSTATUS[s] + ' <span class="cnt">' + counts[s] + '</span></div>'; }).join('');
+    rows.forEach(function (r) {
+      var rt = all.filter(function (t) { return (t.outcome || '') === r.id && (r.run || S.outcomes[t.outcome]); });
+      if (r.run) rt = all.filter(function (t) { return !t.outcome || !S.outcomes[t.outcome]; });
+      var done = rt.filter(function (t) { return t.status === 'done'; }).length;
+      h += '<div class="plabel' + (r.run ? ' run' : '') + '"><b>' + esc(r.title) + '</b><span class="meta">' + done + '/' + rt.length + ' klaar</span></div>';
+      Object.keys(TSTATUS).forEach(function (s) {
+        var cards = rt.filter(function (t) { return t.status === s && plannerFilter(t, T); }).map(function (t) { return tcard(t, T); }).join('');
+        h += '<div class="pcell s-' + s + '" data-tdrop-outcome="' + esc(r.id) + '" data-tdrop-status="' + s + '">' + cards +
+          (S.readOnly ? '' : '<button type="button" class="add" data-pact="addhere" data-outcome="' + esc(r.id) + '" data-status="' + s + '" aria-label="Taak toevoegen: ' + esc(r.title) + ', ' + TSTATUS[s] + '">+</button>') + '</div>';
+      });
+    });
+    h += '</div></div>';
+    h += '<datalist id="ownerList">' + knownOwners().map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>';
+    el.innerHTML = h;
+  }
+
+  $('planner').addEventListener('click', function (e) {
+    if (drag.suppress) { drag.suppress = false; return; }
+    var pf = e.target.closest('[data-pf]');
+    if (pf) { S.pf = S.pf || {}; S.pf[pf.dataset.pf] = !S.pf[pf.dataset.pf]; saveView(); renderPlanner(); return; }
+    var b = e.target.closest('[data-pact]'); if (!b) return;
+    var a = b.dataset.pact;
+    if (a === 'task') openDrawer({ kind: 't', id: b.dataset.id });
+    else if (a === 'add' && !S.readOnly) { var fo = (S.pf || {}).outcome; addTask({ outcome: fo && fo !== '_run' ? fo : '', iter: timeInfo().nowIdx >= 0 ? timeInfo().nowIdx : null }); }
+    else if (a === 'addhere' && !S.readOnly) addTask({ outcome: b.dataset.outcome, status: b.dataset.status, iter: timeInfo().nowIdx >= 0 ? timeInfo().nowIdx : null });
+  });
+  $('planner').addEventListener('change', function (e) {
+    if (e.target.id === 'pf-outcome') { S.pf = S.pf || {}; S.pf.outcome = e.target.value; saveView(); renderPlanner(); }
+  });
+
+  /* ---------- weekly sync ---------- */
+  var timer = { left: 300, running: false, h: null };
+  function fmtTime(s) { var m = Math.floor(Math.max(0, s) / 60), r = Math.max(0, s) % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
+  function paintTimer() {
+    var el = $('stime'), btn = $('sTimerBtn'); if (!el) return;
+    el.textContent = timer.left > 0 ? fmtTime(timer.left) : 'Tijd!';
+    el.classList.toggle('over', timer.left <= 0);
+    if (btn) btn.textContent = timer.running ? 'Pauze' : (timer.left < 300 ? 'Verder' : 'Start timer');
+  }
+  function startTimer() { if (timer.running) return; timer.running = true; timer.h = setInterval(function () { timer.left--; paintTimer(); if (timer.left <= -600) stopTimer(); }, 1000); paintTimer(); }
+  function stopTimer() { timer.running = false; clearInterval(timer.h); timer.h = null; paintTimer(); }
+  function resetTimer(keep) { var was = timer.running; stopTimer(); timer.left = 300; if (keep && was) startTimer(); paintTimer(); }
+
+  function renderSync() {
+    var el = $('sync'); if (!el) return;
+    if (!S.ready) { el.innerHTML = '<div class="empty">Laden…</div>'; return; }
+    var a = document.activeElement, keepNote = $('sync-ci-note') ? $('sync-ci-note').value : '', keepConf = $('sync-ci-conf') ? $('sync-ci-conf').value : '3', hadFocus = a && a.id;
+    var T = timeInfo(), outs = sortedOutcomes(), ms = msList(), tasks = taskList(), names = iterNames();
+    var n = outs.length + 1;
+    S.syncIdx = Math.max(0, Math.min(n - 1, num(S.syncIdx)));
+    var i = S.syncIdx, o = outs[i];
+    var nav = '<div class="sdots" role="group" aria-label="Onderdelen">' + outs.map(function (x, k) {
+      return '<button type="button" class="sdot' + (k === i ? ' on' : '') + '" data-sact="go" data-i="' + k + '" aria-label="' + esc(x.title || 'Outcome') + '"' + (k === i ? ' aria-current="step"' : '') + '>' + (k + 1) + '</button>';
+    }).join('') + '<button type="button" class="sdot' + (i === n - 1 ? ' on' : '') + '" data-sact="go" data-i="' + (n - 1) + '" aria-label="Afronden">✓</button></div>';
+    var head = '<div class="shead"><div><p class="eyebrow">Weekly sync · ' + (o ? 'outcome ' + (i + 1) + ' van ' + outs.length : 'afronden') + '</p>' +
+      '<h2>' + esc(o ? (o.title || '(zonder titel)') : 'Afronden') + '</h2></div>' +
+      '<div class="stimer"><span id="stime" class="num">5:00</span><button type="button" class="btn" id="sTimerBtn" data-sact="timer">Start timer</button><button type="button" class="btn" data-sact="reset" aria-label="Timer opnieuw">↺</button></div>' +
+      '<div class="snav"><button type="button" class="btn" data-sact="prev"' + (i === 0 ? ' disabled' : '') + '>← Vorige</button><button type="button" class="btn primary" data-sact="next"' + (i === n - 1 ? ' disabled' : '') + '>Volgende →</button></div></div>';
+
+    var body;
+    if (o) {
+      var st = outcomeStats(o, T, ms), cis = checkinsOf(o), last = cis[cis.length - 1];
+      var thisWeek = last && daysSince(last.date) != null && daysSince(last.date) < 7;
+      var krs = Array.isArray(o.krs) ? o.krs : [];
+      var c1 = '<section class="sbox"><div class="otop"><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span>' + (o.commitment === 'stretch' ? '<span class="tag">Stretch</span>' : '') + '</div>' +
+        '<div class="bar"><div class="fill f-' + st.health + '" style="width:' + st.pct + '%"></div><div class="exp" style="left:' + T.expected + '%"></div></div>' +
+        '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
+        (o.hypothesis ? '<p class="hyp"><span class="lbl">Hypothese</span>' + esc(o.hypothesis) + '</p>' : '') +
+        '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:var(--muted)"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + '</ul>' +
+        '<div class="sci"><h3>Check-in</h3>' + (last ? '<p class="meta">Vorige: <span class="conf c-' + confClass(last.confidence) + '">' + num(last.confidence) + '/5</span> ' + esc(agoLabel(daysSince(last.date))) + (last.note ? ' · “' + esc(last.note) + '”' : '') + '</p>' : '<p class="meta">Nog geen check-in.</p>') +
+        (thisWeek ? '<p class="okmsg">Deze week al ingecheckt.</p>' : '') +
+        (S.readOnly ? '' : '<div class="cigrid"><label class="field">Vertrouwen<select id="sync-ci-conf">' + [5, 4, 3, 2, 1].map(function (k) { return opt(k, k + ' – ' + CONF[k], keepConf); }).join('') + '</select></label>' +
+          '<label class="field">Wat zien we?<input id="sync-ci-note" type="text" value="' + esc(keepNote) + '" placeholder="Wat is bewogen, wat zit tegen?"></label>' +
+          '<button type="button" class="btn primary" data-sact="checkin">Opslaan</button></div>') + '</div></section>';
+
+      var om = ms.filter(function (m) { return m.row === o.id; });
+      var near = om.filter(function (m) { var it = iterOf(m); return it === T.nowIdx || it === T.nowIdx + 1 || (T.nowIdx < 0 && it <= 1) || (m.status !== 'done' && m.status !== 'missed' && T.nowIdx >= 0 && it < T.nowIdx); });
+      var c2 = '<section class="sbox"><h3>Mijlpalen: nu en volgende iteratie</h3>' + (near.length ? '<ul class="slist">' + near.map(function (m) {
+        var s = msState(m, T), tk = tasksFor(m.id), tdone = tk.filter(function (t) { return t.status === 'done'; }).length;
+        return '<li><button type="button" class="srow" data-sact="ms" data-id="' + esc(m.id) + '">' + diamond(m.type) + '<span class="st">' + esc(m.title || '') + '<span class="meta">' + esc(names[iterOf(m)] || '') + (tk.length ? ' · ' + tdone + '/' + tk.length + ' taken klaar' : '') + '</span></span><span class="cstat st-' + (s.cls === 'late' ? 'risk' : s.cls) + '">' + s.icon + esc(s.label) + '</span></button></li>';
+      }).join('') + '</ul>' : '<p class="meta">Geen mijlpalen in deze of de volgende iteratie.</p>') + '</section>';
+
+      var ot = tasks.filter(function (t) { return t.outcome === o.id; });
+      var stuck = ot.filter(function (t) { return t.status === 'waiting' || taskLate(t, T); });
+      var doing = ot.filter(function (t) { return t.status === 'doing'; });
+      var c3 = '<section class="sbox"><h3>Taken die aandacht vragen</h3>' + (S.tasksMissing ? '<p class="meta">Planner nog niet geactiveerd.</p>' :
+        (stuck.length ? '<div class="sstack">' + stuck.map(function (t) { return tcard(t, T); }).join('') + '</div>' : '<p class="okmsg">Niets vastgelopen of te laat.</p>') +
+        '<h3>Bezig (' + doing.length + ')</h3>' + (doing.length ? '<div class="sstack">' + doing.map(function (t) { return tcard(t, T); }).join('') + '</div>' : '<p class="meta">Niets in uitvoering.</p>') +
+        (S.readOnly ? '' : '<button type="button" class="btn ghost" data-sact="addtask" data-outcome="' + esc(o.id) + '">+ Taak</button>')) + '</section>';
+      body = '<div class="sgrid">' + c1 + c2 + c3 + '</div>';
+    } else {
+      var noCi = outs.filter(function (x) { var c = checkinsOf(x); var l = c[c.length - 1]; return !l || daysSince(l.date) == null || daysSince(l.date) >= 7; });
+      var stuckAll = tasks.filter(function (t) { return t.status === 'waiting' || taskLate(t, T); });
+      var lateMs = ms.filter(function (m) { return msState(m, T).cls === 'late' || m.status === 'risk'; });
+      body = '<div class="sgrid">' +
+        '<section class="sbox"><h3>Nog geen check-in deze week</h3>' + (noCi.length ? '<ul class="slist">' + noCi.map(function (x) { return '<li><button type="button" class="srow" data-sact="go" data-i="' + outs.indexOf(x) + '"><span class="st">' + esc(x.title || '') + '</span><span class="cstat">Naar check-in →</span></button></li>'; }).join('') + '</ul>' : '<p class="okmsg">Alle outcomes zijn deze week ingecheckt.</p>') + '</section>' +
+        '<section class="sbox"><h3>Mijlpalen met risico of verlopen</h3>' + (lateMs.length ? '<ul class="slist">' + lateMs.map(function (m) { var s = msState(m, T); return '<li><button type="button" class="srow" data-sact="ms" data-id="' + esc(m.id) + '">' + diamond(m.type) + '<span class="st">' + esc(m.title || '') + '<span class="meta">' + esc((S.outcomes[m.row] ? S.outcomes[m.row].title : 'ART') + ' · ' + (names[iterOf(m)] || '')) + '</span></span><span class="cstat st-risk">' + s.icon + esc(s.label) + '</span></button></li>'; }).join('') + '</ul>' : '<p class="okmsg">Geen mijlpalen met risico.</p>') + '</section>' +
+        '<section class="sbox"><h3>Vastgelopen of te late taken</h3>' + (S.tasksMissing ? '<p class="meta">Planner nog niet geactiveerd.</p>' : stuckAll.length ? '<div class="sstack">' + stuckAll.map(function (t) { return tcard(t, T); }).join('') + '</div>' : '<p class="okmsg">Niets vastgelopen.</p>') + '</section>' +
+        '</div>';
+    }
+    el.innerHTML = '<div class="syncwrap">' + head + nav + body + '</div>';
+    paintTimer();
+    if (hadFocus && $(hadFocus)) { var f2 = $(hadFocus); f2.focus(); }
+  }
+
+  $('sync').addEventListener('click', function (e) {
+    var tc = e.target.closest('[data-pact="task"]'); if (tc) { openDrawer({ kind: 't', id: tc.dataset.id }); return; }
+    var b = e.target.closest('[data-sact]'); if (!b) return;
+    var a = b.dataset.sact;
+    if (a === 'next' || a === 'prev' || a === 'go') {
+      S.syncIdx = a === 'go' ? num(b.dataset.i) : num(S.syncIdx) + (a === 'next' ? 1 : -1);
+      var ni = $('sync-ci-note'); if (ni) ni.value = '';
+      resetTimer(true); renderSync(); window.scrollTo(0, 0);
+    }
+    else if (a === 'timer') { if (timer.running) stopTimer(); else startTimer(); }
+    else if (a === 'reset') resetTimer(false);
+    else if (a === 'ms') openDrawer({ kind: 'm', id: b.dataset.id });
+    else if (a === 'addtask' && !S.readOnly) addTask({ outcome: b.dataset.outcome, iter: timeInfo().nowIdx >= 0 ? timeInfo().nowIdx : null });
+    else if (a === 'checkin' && !S.readOnly) {
+      var o = sortedOutcomes()[S.syncIdx]; if (!o) return;
+      var cis = clone(Array.isArray(o.checkins) ? o.checkins : []);
+      cis.push({ id: rid('ci'), date: new Date().toISOString(), confidence: num($('sync-ci-conf').value) || 3, note: $('sync-ci-note').value.trim(), by: myName() || '' });
+      $('sync-ci-note').value = '';
+      queue('outcomes', o.id, { checkins: cis }, 0);
+      toast('Check-in opgeslagen.');
+    }
+  });
+
   /* ---------- laden + realtime ---------- */
   function overlay(col, id, body) { var p = pending[col + '/' + id]; return p ? Object.assign({}, body, p.patch) : body; }
   function applySettings(r) { var v = fromRow(r); S.settings = { piStart: v.piStart || '2026-12-09', iterationWeeks: num(v.iterationWeeks) || 2, piName: v.piName || '', iterationCount: num(v.iterationCount) || 4, ipIteration: v.ipIteration !== false }; }
@@ -691,7 +1017,17 @@
       if (res[2].data[0]) applySettings(res[2].data[0]);
       S.ready = true; $('btnAddOutcome').disabled = false;
       renderAll();
+      return loadTasks();
     });
+  }
+  function loadTasks() {
+    return Promise.resolve(S.sb.from('tasks').select('*')).then(function (r) {
+      if (r.error) { S.tasksMissing = true; renderAll(); return; }
+      S.tasksMissing = false;
+      var t = {}; (r.data || []).forEach(function (row) { t[row.id] = overlay('tasks', row.id, fromRow(row)); });
+      S.tasks = t; renderAll();
+      if (!S.taskChannel) S.taskChannel = S.sb.channel('lace-pi-tasks').on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, onChange('tasks')).subscribe();
+    }, function () { S.tasksMissing = true; renderAll(); });
   }
 
   function onChange(col) {
@@ -724,6 +1060,7 @@
   }
   S.sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
   $('app').hidden = false;
-  renderLegend(); renderAll();
+  renderLegend();
+  setView(location.hash.slice(1) || 'board', true);
   subscribe();
 })();

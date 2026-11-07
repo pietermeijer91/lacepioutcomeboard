@@ -35,6 +35,14 @@
       { id: 'm4', row_ref: 'o1', contrib_ref: 'c1', iter: 2, title: 'Dashboard live voor 2 ARTs', type: 'release', status: 'planned', created_at: daysAgo(27) },
       { id: 'm5', row_ref: 'o1', contrib_ref: 'c2', iter: 1, title: 'RTE-sessie metrics', type: 'sync', status: 'risk', created_at: daysAgo(26) },
       { id: 'm6', row_ref: 'o2', contrib_ref: 'c3', iter: 1, title: 'Draaiboek v1', type: 'learn', status: 'planned', created_at: daysAgo(25) }
+    ],
+    tasks: [
+      { id: 't1', title: 'Koppeling Jira-statussen testen', outcome_ref: 'o1', milestone_ref: 'm4', owner: 'Voorbeeld A', status: 'doing', iter: 1, checklist: [{ id: 'x1', text: 'Testset kiezen', done: true }, { id: 'x2', text: 'Afwijkingen noteren', done: false }], notes: '', sort_order: 1, created_at: daysAgo(10) },
+      { id: 't2', title: 'Dashboard-template maken', outcome_ref: 'o1', milestone_ref: 'm4', owner: 'Voorbeeld A', status: 'todo', iter: 2, checklist: [], notes: '', sort_order: 2, created_at: daysAgo(9) },
+      { id: 't3', title: 'Agenda RTE-sessie afstemmen', outcome_ref: 'o1', milestone_ref: 'm5', owner: 'Voorbeeld B', status: 'waiting', iter: 1, checklist: [], notes: 'Wacht op beschikbaarheid RTE\'s', sort_order: 3, created_at: daysAgo(8) },
+      { id: 't4', title: 'Datamodel documenteren', outcome_ref: 'o1', milestone_ref: 'm3', owner: 'Voorbeeld A', status: 'done', iter: 0, checklist: [], notes: '', sort_order: 4, created_at: daysAgo(20) },
+      { id: 't5', title: 'Draaiboek eerste versie', outcome_ref: 'o2', milestone_ref: 'm6', owner: 'Voorbeeld C', status: 'todo', iter: 0, checklist: [], notes: '', sort_order: 5, created_at: daysAgo(18) },
+      { id: 't6', title: 'Verlof en bezetting PI bijwerken', outcome_ref: '', milestone_ref: '', owner: 'Voorbeeld B', status: 'doing', iter: 1, checklist: [], notes: '', sort_order: 6, created_at: daysAgo(4) }
     ]
   };
 
@@ -65,7 +73,7 @@
     createClient: function () {
       return {
         from: query,
-        channel: function () { var c = { on: function () { return c; }, subscribe: function (cb) { setTimeout(function () { cb('SUBSCRIBED'); }, 0); return c; } }; return c; },
+        channel: function () { var c = { on: function () { return c; }, subscribe: function (cb) { if (cb) setTimeout(function () { cb('SUBSCRIBED'); }, 0); return c; } }; return c; },
         removeAllChannels: function () {},
         auth: {}
       };

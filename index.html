@@ -26,6 +26,13 @@
     </div>
   </header>
 
+  <nav class="tabs" aria-label="Weergave">
+    <button type="button" class="tab" data-view="board" aria-current="page">Outcome Board</button>
+    <button type="button" class="tab" data-view="planner">Planner</button>
+    <button type="button" class="tab" data-view="sync">Weekly sync</button>
+  </nav>
+
+  <div id="viewBoard" class="view">
   <section class="tiles" aria-label="Samenvatting">
     <div class="tile"><span class="k">Voortgang outcomes</span><span class="v num" id="tPct">0%</span><div class="bar" role="progressbar" aria-label="Totale voortgang" aria-valuemin="0" aria-valuemax="100" id="tBar" aria-valuenow="0"><div class="fill" id="tFill" style="width:0%"></div></div></div>
     <div class="tile"><span class="k">Mijlpalen gehaald</span><span class="v num" id="tMs">0 / 0</span><span class="s" id="tMsSub">nog niets gepland</span></div>
@@ -43,6 +50,10 @@
   </section>
 
   <footer class="legend" id="legend"></footer>
+  </div>
+
+  <div id="viewPlanner" class="view" hidden><div id="planner"><div class="empty">Planner laden…</div></div></div>
+  <div id="viewSync" class="view" hidden><div id="sync"><div class="empty">Laden…</div></div></div>
 </div>
 
 <div id="drawerRoot"></div>

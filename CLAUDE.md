@@ -10,9 +10,11 @@ Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `mai
 - **Datamodel** (zie `supabase/schema.sql`):
   - `outcomes`: titel, `sort_order`, `hypothesis`, `commitment` (`committed`/`stretch`), `bv_planned`, `bv_actual`, en JSON-velden `krs` (`{id,text,kind,start,target,current,unit}`), `contribs` (`{id,owner,text}`), `checkins` (`{id,date,confidence,note,by}`).
   - `milestones`: `row_ref` (`art` of een outcome-id), `contrib_ref` (bijdrage-id, `''` = hele outcome), `iter` (kolomindex), `type` (`fixed`/`learn`/`sync`/`release`), `status` (`planned`/`done`/`risk`/`missed`), `learning`, `decision`.
+  - `tasks` (planner): `title`, `outcome_ref` (`''` = Run & overig), `milestone_ref`, `owner`, `status` (`todo`/`doing`/`waiting`/`done`), `iter` (null = geen), `checklist` (`{id,text,done}`), `notes`, `sort_order`. Wordt apart geladen (`loadTasks`) met een eigen realtime-kanaal; ontbreekt de tabel, dan toont de Planner een melding en werkt de rest gewoon.
   - `settings`: één rij `id = 'pi'` met startdatum, iteratielengte, aantal iteraties, IP-iteratie, naam.
 - In `app.js` heten velden camelCase; `KEYMAP` vertaalt naar de snake_case-kolommen (`toRow`/`fromRow`). Nieuwe kolom met een andere naam? Voeg hem toe aan `KEYMAP`.
 - Schrijven gaat via `queue(col, id, patch, delay)` (optimistisch lokaal bijwerken, daarna debounced `update`). Realtime-events en `loadAll()` leggen openstaande wijzigingen eroverheen (`overlay`), zodat typen niet wordt overschreven.
+- Drie weergaven via tabs en de URL-hash: Outcome Board (standaard), `#planner` en `#sync`. `renderViews()` tekent de actieve weergave; gebruik die in plaats van `renderBoard()` na een wijziging.
 - Weergave: `renderBoard()` bouwt het bord als HTML-string; het zijpaneel (`buildDrawer`/`syncDrawer`) wordt apart bijgewerkt zodat focus en cursor behouden blijven.
 
 ## Afspraken
