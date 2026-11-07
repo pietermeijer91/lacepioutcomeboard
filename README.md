@@ -33,6 +33,11 @@ python3 -m http.server 8000
 - **Vandaag-lijn**: een oranje lijn markeert de huidige dag; geplande mijlpalen in een voorbije iteratie krijgen een gestippelde rand.
 - **+ PI-outcome**: voeg een outcome toe en vul de key results in (start, doel, nu). De voortgang en de status (Gepland, Op koers, Aandacht, Achter, Behaald) worden berekend tegenover de verwachte voortgang op basis van de tijd in de PI.
 - **+ mijlpaal** in een iteratiekolom: plan een mijlpaal en houd de status bij (gepland, gehaald, risico, gemist).
+- **Hypothese** per outcome: "Wij geloven dat … leidt tot … We weten dat het werkt als …".
+- **Voorlopend / achterlopend** per key result; een waarschuwing als een outcome alleen achterlopende indicatoren heeft.
+- **Check-ins**: per iteratie een vertrouwensscore (1–5) met toelichting; het bord toont het verloop als lijntje.
+- **Commitment en business value**: committed of stretch, BV gepland en werkelijk; bovenaan staat de predictability (werkelijk / gepland committed, doel 80–100%).
+- **Leerpunten** bij mijlpalen met een besluit (doorgaan, bijsturen, stoppen); per outcome verschijnt een leerlog.
 - **PI-instellingen**: naam van de PI, startdatum, iteratielengte, aantal iteraties en wel of geen IP-iteratie. Hier kun je ook de gegevens uit het eerdere canvas-bord plakken.
 
 ## Datamodel

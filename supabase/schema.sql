@@ -12,6 +12,11 @@ create table if not exists public.outcomes (
   sort_order  integer not null default 0,
   krs         jsonb not null default '[]'::jsonb,   -- [{id, text, start, target, current, unit}]
   contribs    jsonb not null default '[]'::jsonb,   -- [{id, owner, text}]
+  hypothesis  text not null default '',
+  commitment  text not null default 'committed',     -- committed of stretch
+  bv_planned  integer,
+  bv_actual   integer,
+  checkins    jsonb not null default '[]'::jsonb,   -- [{id, date, confidence 1-5, note, by}]
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text
@@ -25,6 +30,8 @@ create table if not exists public.milestones (
   title       text not null default '',
   type        text not null default 'learn' check (type in ('fixed','learn','sync','release')),
   status      text not null default 'planned' check (status in ('planned','done','risk','missed')),
+  learning    text not null default '',
+  decision    text not null default '',              -- '', continue, adjust, stop
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text

@@ -13,6 +13,23 @@
   }
   function lastCol() { return piIterCount(); }
   function iterOf(m) { return Math.max(0, Math.min(lastCol(), num(m.iter))); }
+  var CONF = { 1: 'Zeer onzeker', 2: 'Onzeker', 3: 'Neutraal', 4: 'Zeker', 5: 'Zeer zeker' };
+  var DECISION = { '': '—', 'continue': 'Doorgaan', 'adjust': 'Bijsturen', 'stop': 'Stoppen' };
+  var KIND = { '': '—', 'leading': 'Voorlopend', 'lagging': 'Achterlopend' };
+  function checkinsOf(o) { return (Array.isArray(o.checkins) ? o.checkins : []).slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); }); }
+  function daysSince(iso) { var d = new Date(iso); if (isNaN(d)) return null; var n = new Date(); return Math.floor((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000); }
+  function agoLabel(n) { return n == null ? '' : n <= 0 ? 'vandaag' : n === 1 ? 'gisteren' : n + ' dagen geleden'; }
+  function confClass(c) { c = num(c); return c >= 4 ? 'ok' : c === 3 ? 'watch' : 'behind'; }
+  function spark(cis) {
+    if (cis.length < 2) return '';
+    var w = 120, h = 30, pad = 4, step = (w - pad * 2) / (cis.length - 1);
+    var pts = cis.map(function (c, i) { return [pad + i * step, pad + (5 - num(c.confidence)) / 4 * (h - pad * 2)]; });
+    var last = pts[pts.length - 1];
+    return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Verloop vertrouwen: ' + cis.map(function (c) { return num(c.confidence); }).join(', ') + '">' +
+      '<line x1="' + pad + '" x2="' + (w - pad) + '" y1="' + (pad + (h - pad * 2) / 2) + '" y2="' + (pad + (h - pad * 2) / 2) + '" class="sp-mid"></line>' +
+      '<polyline points="' + pts.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '" class="sp-line"></polyline>' +
+      '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="3" class="sp-dot c-' + confClass(cis[cis.length - 1].confidence) + '"></circle></svg>';
+  }
   function hiNums(text) {
     var parts = String(text == null ? '' : text).split(/(\d+(?:[.,]\d+)?\s?%?)/);
     return parts.map(function (p, i) { return i % 2 ? '<strong class="kn">' + esc(p) + '</strong>' : esc(p); }).join('');
@@ -23,7 +40,7 @@
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
@@ -116,6 +133,17 @@
     var planned = ms.filter(function (m) { return !m.status || m.status === 'planned'; }).length;
     var risk = ms.filter(function (m) { return m.status === 'risk' || m.status === 'missed'; }).length;
     $('tMs').textContent = done + ' / ' + ms.length; $('tMsSub').textContent = ms.length ? planned + ' nog gepland' : 'nog niets gepland';
+    var plannedBV = outs.filter(function (o) { return o.commitment !== 'stretch' && o.bvPlanned != null; }).reduce(function (a, o) { return a + num(o.bvPlanned); }, 0);
+    var withActual = outs.filter(function (o) { return o.bvActual != null; });
+    var actualBV = withActual.reduce(function (a, o) { return a + num(o.bvActual); }, 0);
+    if (plannedBV > 0 && withActual.length) {
+      var pred = Math.round(actualBV / plannedBV * 100);
+      $('tPred').textContent = pred + '%'; $('tPred').style.color = pred >= 80 && pred <= 100 ? 'var(--ok)' : pred < 80 ? 'var(--watch)' : '';
+      $('tPredSub').textContent = actualBV + ' werkelijk / ' + plannedBV + ' gepland (committed) · doel 80–100%';
+    } else {
+      $('tPred').textContent = '–'; $('tPred').style.color = '';
+      $('tPredSub').textContent = plannedBV > 0 ? plannedBV + ' BV gepland · werkelijke waarde vul je in bij I&A' : 'Vul business value in bij de outcomes';
+    }
     $('tRisk').textContent = risk; $('tRisk').style.color = risk ? 'var(--bad)' : '';
     if (T.nowIdx < 0) { var d = -T.elapsed; $('tNow').textContent = 'Start over ' + d + (d === 1 ? ' dag' : ' dagen'); $('tNowSub').textContent = 'PI start ' + T.start.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
     else if (T.nowIdx >= piIterCount()) { $('tNow').textContent = 'PI afgerond'; $('tNowSub').textContent = 'Tijd voor de volgende PI Planning'; }
@@ -136,7 +164,7 @@
     var title = m.title || '(zonder titel)';
     return '<button type="button" class="callout s-' + s.cls + (sel ? ' sel' : '') + '" style="--mc:var(' + t.v + ')" data-act="ms" data-id="' + esc(m.id) + '" aria-label="' + esc(t.l + ' mijlpaal: ' + title + ', ' + s.label) + '">' +
       '<span class="dia" aria-hidden="true"></span><span class="ctitle">' + esc(title) + '</span>' +
-      '<span class="cstat">' + s.icon + esc(s.label) + '</span></button>';
+      '<span class="cstat">' + s.icon + esc(s.label) + (m.decision ? ' · ' + DECISION[m.decision] : '') + '</span>' + (m.learning ? '<span class="clearn" title="' + esc(m.learning) + '">Leerpunt vastgelegd</span>' : '') + '</button>';
   }
   function msDot(m, T) {
     var t = TYPES[m.type] || TYPES.learn, s = msState(m, T);
@@ -157,6 +185,33 @@
     if (S.focus === '__none__') return null;
     if (S.focus && S.outcomes[S.focus]) return S.focus;
     return outs.length ? outs[0].id : null;
+  }
+
+  function confBadge(o) {
+    var cis = checkinsOf(o); if (!cis.length) return '';
+    var c = cis[cis.length - 1];
+    return ' · <span class="conf c-' + confClass(c.confidence) + '" title="Vertrouwen: ' + esc(CONF[num(c.confidence)] || '') + '">Vertrouwen ' + num(c.confidence) + '/5</span>';
+  }
+  function confBlock(o, T) {
+    var cis = checkinsOf(o), weeks = Math.max(1, num(S.settings.iterationWeeks) || 2);
+    if (!cis.length) return '<div class="confbox"><span class="meta">Nog geen check-in. Hoe zeker zijn we dat deze outcome gehaald wordt?</span></div>';
+    var c = cis[cis.length - 1], ago = daysSince(c.date), stale = ago != null && ago > weeks * 7 && T.nowIdx >= 0;
+    return '<div class="confbox"><div class="confrow"><span class="conf c-' + confClass(c.confidence) + '">Vertrouwen ' + num(c.confidence) + '/5</span>' + spark(cis) + '</div>' +
+      '<span class="meta">' + esc((CONF[num(c.confidence)] || '') + ' · ' + agoLabel(ago) + (c.by ? ' door ' + c.by : '')) + '</span>' +
+      (c.note ? '<span class="cinote">“' + esc(c.note) + '”</span>' : '') +
+      (stale ? '<span class="warn">Laatste check-in is ouder dan een iteratie</span>' : '') + '</div>';
+  }
+  function bvLine(o) {
+    var p = o.bvPlanned, a = o.bvActual;
+    if (p == null && a == null) return '';
+    return '<span class="meta">Business value: <b class="num">' + (p == null ? '–' : num(p)) + '</b> gepland · <b class="num">' + (a == null ? '–' : num(a)) + '</b> werkelijk</span>';
+  }
+  function learnLog(oms) {
+    var l = oms.filter(function (m) { return m.learning; });
+    if (!l.length) return '';
+    return '<details class="learn"><summary>Leerlog (' + l.length + ')</summary><ul>' + l.map(function (m) {
+      return '<li><b>' + esc(m.title || '') + '</b>' + (m.decision ? ' <span class="tag d-' + esc(m.decision) + '">' + DECISION[m.decision] + '</span>' : '') + '<span>' + esc(m.learning) + '</span></li>';
+    }).join('') + '</ul></details>';
   }
 
   function renderBoard() {
@@ -184,7 +239,7 @@
         var owners = cs.map(function (c) { return c.owner; }).filter(Boolean);
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
           '<div class="ocell" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
-          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + '</span>' +
+          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
           '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
           T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
@@ -202,8 +257,12 @@
         '<div class="ocell" style="grid-column:1;grid-row:1 / span ' + n + '">' +
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
         '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
-        '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
-        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button></div>') +
+        (o.commitment === 'stretch' ? '<span class="tag">Stretch-outcome</span>' : '') +
+        (o.hypothesis ? '<p class="hyp"><span class="lbl">Hypothese</span>' + esc(o.hypothesis) + '</p>' : '') +
+        '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + (k.kind ? ' <span class="tag k-' + esc(k.kind) + '">' + KIND[k.kind] + '</span>' : '') + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
+        (krs.length && krs.every(function (k) { return k.kind === 'lagging'; }) ? '<p class="warn">Alleen achterlopende indicatoren: waar stuur je tijdens de PI op?</p>' : '') +
+        confBlock(o, T) + bvLine(o) + learnLog(oms) +
+        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') +
         (o.updatedAt ? '<span class="meta">' + esc(whoLabel(o)) + '</span>' : '') + '</div>';
 
       lanes.forEach(function (ln, idx) {
@@ -234,6 +293,7 @@
   function check(res) {
     if (res && res.error) {
       var e = res.error;
+      if (/hypothesis|commitment|bv_planned|bv_actual|checkins|learning|decision/.test(e.message || '')) { toast('De database mist nog kolommen. Voer supabase/migrations/004_outcome_based_lace.sql uit in Supabase.'); return; }
       if (/iteration_count|ip_iteration|iter_check/.test(e.message || '')) { toast('De database mist nog een aanpassing. Voer supabase/migrations/003_iteraties_instelbaar.sql uit in Supabase.'); return; }
       if (/contrib_ref/.test(e.message || '')) { toast('De database mist nog een kolom. Voer supabase/migrations/002_bijdrage_koppeling.sql uit in Supabase.'); return; }
       if (e.code === '42501' || /row-level security|permission/i.test(e.message || '')) { S.readOnly = true; toast('Opslaan lukt niet: je account heeft geen schrijfrechten op dit bord.'); renderAll(); }
@@ -285,6 +345,7 @@
     if (a === 'ms') { var mm = S.milestones[id]; if (mm && mm.row !== 'art' && !S.expandAll) setFocus(mm.row); openDrawer({ kind: 'm', id: id }); }
     else if (a === 'edit') openDrawer({ kind: 'o', id: id });
     else if (a === 'addoutcome' && S.ready && !S.readOnly) addOutcome();
+    else if (a === 'checkin') { openDrawer({ kind: 'o', id: id }); var cf = $('ci-conf'); if (cf) { cf.scrollIntoView({ block: 'center' }); cf.focus(); } }
     else if (a === 'focus') { setFocus(id); renderBoard(); }
     else if (a === 'unfocus') { setFocus('__none__'); renderBoard(); }
     else if (a === 'addms' && S.ready && !S.readOnly) addMs(b.dataset.row, num(b.dataset.iter), b.dataset.contrib);
@@ -377,16 +438,28 @@
         '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + opt('art', 'ART- & LACE-mijlpalen', m.row) + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
         '<label class="field">Bijdrage (baan)<select id="m-contrib" data-f="contrib"' + (S.readOnly || m.row === 'art' ? ' disabled' : '') + '>' + contribOptions(m.row, m.contrib) + '</select></label>' +
         '<label class="field">Iteratie<select id="m-iter" data-f="iter"' + ro + '>' + iterNames().map(function (n, i) { return opt(i, n, iterOf(m)); }).join('') + '</select></label></div>' +
+        '<div class="sec"><h3>Leerpunt</h3><p class="note">Vooral bij leermijlpalen: wat hebben we geleerd, en wat doen we ermee?</p>' +
+        '<label class="field">Wat hebben we geleerd?<textarea class="prose" id="m-learning" data-f="learning" rows="3" placeholder="bijv. RTE\'s gebruiken het dashboard alleen als het in de ART-sync zit"' + ro + '>' + esc(m.learning || '') + '</textarea></label>' +
+        '<label class="field">Besluit<select id="m-decision" data-f="decision"' + ro + '>' + Object.keys(DECISION).map(function (k) { return opt(k, DECISION[k], m.decision || ''); }).join('') + '</select></label></div>' +
         '<p class="note" id="m-who">' + esc(whoLabel(m)) + '</p>';
       foot = S.readOnly ? '' : '<button class="btn" type="button" data-d="left">← Eerder</button><button class="btn" type="button" data-d="right">Later →</button><span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
     } else if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) { closeDrawer(); return; }
       title = 'PI-outcome';
       body = '<label class="field">Outcome<input id="o-title" class="big" data-f="title" type="text" value="' + esc(o.title) + '"' + ro + '></label>' +
-        '<div class="sec"><h3>Key results</h3><div style="overflow-x:auto"><div class="grid krgrid"><span class="h">Wat meten we</span><span class="h">Start</span><span class="h">Doel</span><span class="h">Nu</span><span class="h unit">Eenheid</span><span></span></div><div id="krList" class="sec"></div></div>' +
+        '<label class="field">Hypothese<textarea class="prose" id="o-hyp" data-f="hypothesis" rows="3" placeholder="Wij geloven dat [aanpak] leidt tot [resultaat]. We weten dat het werkt als [meetbaar signaal]."' + ro + '>' + esc(o.hypothesis || '') + '</textarea></label>' +
+        '<div class="three"><label class="field">Commitment<select id="o-commit" data-f="commitment"' + ro + '>' + opt('committed', 'Committed', o.commitment || 'committed') + opt('stretch', 'Stretch (uncommitted)', o.commitment || 'committed') + '</select></label>' +
+        '<label class="field">BV gepland (1–10)<input id="o-bvp" data-f="bvPlanned" type="number" min="1" max="10" value="' + esc(o.bvPlanned == null ? '' : o.bvPlanned) + '"' + ro + '></label>' +
+        '<label class="field">BV werkelijk (bij I&amp;A)<input id="o-bva" data-f="bvActual" type="number" min="0" max="10" value="' + esc(o.bvActual == null ? '' : o.bvActual) + '"' + ro + '></label></div>' +
+        '<div class="sec"><h3>Key results</h3><div style="overflow-x:auto"><div class="grid krgrid"><span class="h">Wat meten we</span><span class="h">Soort</span><span class="h">Start</span><span class="h">Doel</span><span class="h">Nu</span><span class="h unit">Eenheid</span><span></span></div><div id="krList" class="sec"></div></div>' +
         (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addkr" style="align-self:flex-start">+ Key result</button>') + '</div>' +
         '<div class="sec"><h3>Bijdragen (wie doet wat)</h3><div id="cList" class="sec"></div>' +
         (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addc" style="align-self:flex-start">+ Bijdrage</button>') + '</div>' +
+        '<div class="sec"><h3>Check-ins</h3><p class="note">Elke iteratie: hoe zeker zijn we dat deze outcome gehaald wordt, en wat zien we?</p>' +
+        (S.readOnly ? '' : '<div class="cigrid"><label class="field">Vertrouwen<select id="ci-conf">' + [5, 4, 3, 2, 1].map(function (n) { return opt(n, n + ' – ' + CONF[n], 3); }).join('') + '</select></label>' +
+        '<label class="field">Toelichting<input id="ci-note" type="text" placeholder="Wat zien we, wat zit tegen?"></label>' +
+        '<button class="btn primary" type="button" data-d="addci">Check-in toevoegen</button></div>') +
+        '<ul id="ciList" class="cilist"></ul></div>' +
         '<p class="note" id="o-who">' + esc(whoLabel(o)) + '</p>';
       foot = S.readOnly ? '' : '<button class="btn" type="button" data-d="up">↑ Omhoog</button><button class="btn" type="button" data-d="down">↓ Omlaag</button><span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
     } else {
@@ -404,7 +477,7 @@
     r.innerHTML = '<div class="scrim" data-d="close"></div><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">' +
       '<div class="dhead"><h2 id="dTitle">' + title + '</h2><button class="btn" type="button" data-d="close">Klaar</button></div>' +
       '<div class="dbody">' + body + '</div>' + (foot ? '<div class="dfoot">' + foot + '</div>' : '') + '</aside>';
-    if (sel.kind === 'o') { renderKrList(true); renderCList(true); }
+    if (sel.kind === 'o') { renderKrList(true); renderCList(true); renderCiList(true); }
     var first = r.querySelector('input,select'); if (first) first.focus();
   }
 
@@ -429,6 +502,7 @@
         var id = esc(k.id);
         return '<div class="grid krgrid">' +
           '<input type="text" aria-label="Key result" data-kr="' + id + '" data-kf="text" value="' + esc(k.text) + '"' + ro + '>' +
+          '<select aria-label="Soort indicator" data-kr="' + id + '" data-kf="kind"' + ro + '>' + Object.keys(KIND).map(function (kk) { return opt(kk, KIND[kk], k.kind || ''); }).join('') + '</select>' +
           '<input type="number" aria-label="Startwaarde" data-kr="' + id + '" data-kf="start" value="' + esc(k.start) + '"' + ro + '>' +
           '<input type="number" aria-label="Doelwaarde" data-kr="' + id + '" data-kf="target" value="' + esc(k.target) + '"' + ro + '>' +
           '<input type="number" class="cur" aria-label="Huidige waarde" data-kr="' + id + '" data-kf="current" value="' + esc(k.current) + '"' + ro + '>' +
@@ -453,9 +527,21 @@
       }).join('') || '<p class="note">Nog geen bijdragen.</p>';
     });
   }
+  function renderCiList(force) {
+    var o = S.outcomes[S.sel.id], el = $('ciList'); if (!o || !el) return;
+    var cis = checkinsOf(o).reverse();
+    if (!force && el.dataset.sig === sig(cis)) return;
+    el.dataset.sig = sig(cis);
+    el.innerHTML = cis.map(function (c) {
+      var d = new Date(c.date);
+      return '<li><span class="conf c-' + confClass(c.confidence) + '">' + num(c.confidence) + '/5</span><span class="cimeta">' + esc((isNaN(d) ? '' : d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })) + (c.by ? ' · ' + c.by : '')) + '</span>' +
+        '<span class="citext">' + esc(c.note || '') + '</span>' +
+        (S.readOnly ? '' : '<button type="button" class="x" aria-label="Check-in verwijderen" data-d="delci" data-id="' + esc(c.id) + '">' + X_ICON + '</button>') + '</li>';
+    }).join('') || '<li class="note">Nog geen check-ins.</li>';
+  }
   function syncInputs(scope) {
     var o = S.sel && S.sel.kind === 'o' ? S.outcomes[S.sel.id] : null;
-    scope.querySelectorAll('input[data-kr],input[data-c]').forEach(function (inp) {
+    scope.querySelectorAll('input[data-kr],select[data-kr],input[data-c]').forEach(function (inp) {
       if (inp === document.activeElement || !o) return;
       var list = inp.dataset.kr ? o.krs : o.contribs, idk = inp.dataset.kr || inp.dataset.c, f = inp.dataset.kf || inp.dataset.cf;
       var item = (list || []).find(function (x) { return x.id === idk; });
@@ -470,8 +556,12 @@
       var w = $('m-who'); if (w) w.textContent = whoLabel(m);
     } else if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) { closeDrawer(); toast('Deze outcome is verwijderd.'); return; }
-      var t = $('o-title'); if (t && t !== document.activeElement && t.value !== (o.title || '')) t.value = o.title || '';
-      renderKrList(false); renderCList(false);
+      r.querySelectorAll('.dbody > .field [data-f], .dbody > .three [data-f]').forEach(function (el) {
+        if (el === document.activeElement) return;
+        var f = el.dataset.f, v = o[f]; if (f === 'commitment' && !v) v = 'committed';
+        v = v == null ? '' : v; if (String(el.value) !== String(v)) el.value = v;
+      });
+      renderKrList(false); renderCList(false); renderCiList(false);
       var w2 = $('o-who'); if (w2) w2.textContent = whoLabel(o);
     } else {
       r.querySelectorAll('[data-s]').forEach(function (el) { if (el !== document.activeElement) { var v = S.settings[el.dataset.s]; if (v != null && String(el.value) !== String(v)) el.value = v; } });
@@ -496,12 +586,18 @@
       var pm = {}; pm[el.dataset.f] = el.dataset.f === 'iter' ? num(el.value) : el.value;
       if (el.dataset.f === 'row') { pm.contrib = ''; var cSel = $('m-contrib'); if (cSel) { cSel.innerHTML = contribOptions(el.value, ''); cSel.disabled = el.value === 'art'; } if (el.value !== 'art') setFocus(el.value); }
       if (el.dataset.f === 'contrib') { var mm = S.milestones[sel.id]; if (mm && mm.row !== 'art') setFocus(mm.row); }
+      if (el.dataset.f === 'status' && el.value === 'done') { var ml = S.milestones[sel.id]; if (ml && ml.type === 'learn' && !ml.learning) { var lt = $('m-learning'); if (lt) { lt.focus(); lt.scrollIntoView({ block: 'center' }); } toast('Gehaald! Wat hebben we geleerd? Vul het leerpunt in.'); } }
       queue('milestones', sel.id, pm, el.tagName === 'SELECT' ? 0 : 450); return;
     }
     if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) return;
-      if (el.dataset.f === 'title') { queue('outcomes', sel.id, { title: el.value }); return; }
-      if (el.dataset.kr) { var krs = clone(o.krs || []); krs.forEach(function (k) { if (k.id === el.dataset.kr) { var f = el.dataset.kf; k[f] = (f === 'text' || f === 'unit') ? el.value : (el.value === '' ? '' : Number(el.value)); } }); queue('outcomes', sel.id, { krs: krs }); return; }
+      if (el.dataset.f) {
+        var po = {}, f0 = el.dataset.f;
+        if (f0 === 'bvPlanned' || f0 === 'bvActual') po[f0] = el.value === '' ? null : Math.max(0, Math.min(10, num(el.value)));
+        else po[f0] = el.value;
+        queue('outcomes', sel.id, po, el.tagName === 'SELECT' ? 0 : 450); return;
+      }
+      if (el.dataset.kr) { var krs = clone(o.krs || []); krs.forEach(function (k) { if (k.id === el.dataset.kr) { var f = el.dataset.kf; k[f] = (f === 'text' || f === 'unit' || f === 'kind') ? el.value : (el.value === '' ? '' : Number(el.value)); } }); queue('outcomes', sel.id, { krs: krs }); return; }
       if (el.dataset.c) { var cs = clone(o.contribs || []); cs.forEach(function (c) { if (c.id === el.dataset.c) c[el.dataset.cf] = el.value; }); queue('outcomes', sel.id, { contribs: cs }); }
     }
   });
@@ -522,6 +618,12 @@
     if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) return;
       if (d === 'addkr') { var krs = clone(o.krs || []); krs.push({ id: rid('k'), text: '', start: 0, target: 100, current: 0, unit: '%' }); queue('outcomes', sel.id, { krs: krs }, 0); renderKrList(true); var ins = $('krList').querySelectorAll('input[data-kf="text"]'); if (ins.length) ins[ins.length - 1].focus(); }
+      else if (d === 'addci') {
+        var cis = clone(Array.isArray(o.checkins) ? o.checkins : []);
+        cis.push({ id: rid('ci'), date: new Date().toISOString(), confidence: num($('ci-conf').value) || 3, note: $('ci-note').value.trim(), by: myName() || '' });
+        queue('outcomes', sel.id, { checkins: cis }, 0); $('ci-note').value = ''; renderCiList(true); toast('Check-in opgeslagen.');
+      }
+      else if (d === 'delci') { queue('outcomes', sel.id, { checkins: (o.checkins || []).filter(function (c) { return c.id !== b.dataset.id; }) }, 0); renderCiList(true); }
       else if (d === 'delkr') { queue('outcomes', sel.id, { krs: (o.krs || []).filter(function (k) { return k.id !== b.dataset.id; }) }, 0); renderKrList(true); }
       else if (d === 'addc') { var cs = clone(o.contribs || []); cs.push({ id: rid('c'), owner: '', text: '' }); queue('outcomes', sel.id, { contribs: cs }, 0); renderCList(true); var ci = $('cList').querySelectorAll('input[data-cf="owner"]'); if (ci.length) ci[ci.length - 1].focus(); }
       else if (d === 'delc') {
