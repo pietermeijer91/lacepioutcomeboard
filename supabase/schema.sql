@@ -40,6 +40,8 @@ create table if not exists public.settings (
 );
 
 -- 2. Toegang: iedereen met de link leest en schrijft (geen login)
+grant select, insert, update, delete on public.outcomes, public.milestones, public.settings to anon, authenticated;
+
 alter table public.outcomes   enable row level security;
 alter table public.milestones enable row level security;
 alter table public.settings   enable row level security;
