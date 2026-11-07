@@ -40,7 +40,7 @@
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
@@ -49,8 +49,8 @@
   var pending = {};
   var saving = 0;
 
-  try { var vw = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; S.focus = vw.focus || null; S.expandAll = !!vw.expandAll; S.pf = vw.pf || {}; } catch (e) {}
-  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ focus: S.focus, expandAll: S.expandAll, pf: S.pf })); } catch (e) {} }
+  try { var vw = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; S.focus = vw.focus || null; S.expandAll = !!vw.expandAll; S.pf = vw.pf || {}; S.showDeps = vw.showDeps !== false; } catch (e) {}
+  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ focus: S.focus, expandAll: S.expandAll, pf: S.pf, showDeps: S.showDeps })); } catch (e) {} }
   function setFocus(id) { S.focus = id; saveView(); }
 
   function $(id) { return document.getElementById(id); }
@@ -164,7 +164,7 @@
     var title = m.title || '(zonder titel)';
     return '<button type="button" class="callout s-' + s.cls + (sel ? ' sel' : '') + '" style="--mc:var(' + t.v + ')" data-act="ms" data-id="' + esc(m.id) + '" aria-label="' + esc(t.l + ' mijlpaal: ' + title + ', ' + s.label) + '">' +
       '<span class="dia" aria-hidden="true"></span><span class="ctitle">' + esc(title) + '</span>' +
-      '<span class="cstat">' + s.icon + esc(s.label) + (m.decision ? ' · ' + DECISION[m.decision] : '') + '</span>' + (m.learning ? '<span class="clearn" title="' + esc(m.learning) + '">Leerpunt vastgelegd</span>' : '') + taskBadge(m) + '</button>';
+      '<span class="cstat">' + s.icon + esc(s.label) + (m.decision ? ' · ' + DECISION[m.decision] : '') + '</span>' + (depIssues(m).length ? '<span class="cdep">Wacht op latere mijlpaal</span>' : '') + (m.learning ? '<span class="clearn" title="' + esc(m.learning) + '">Leerpunt vastgelegd</span>' : '') + taskBadge(m) + '</button>';
   }
   function taskBadge(m) {
     var tk = tasksFor(m.id); if (!tk.length) return '';
@@ -282,15 +282,53 @@
     });
     if (!S.readOnly) h += '<div class="addrow"><button type="button" class="btn ghost" data-act="addoutcome">+ PI-outcome toevoegen</button></div>';
     $('board').style.setProperty('--cols', T.iters.length);
-    $('board').innerHTML = h;
+    $('board').innerHTML = h + '<svg class="deps" aria-hidden="true"><defs>' +
+      '<marker id="dep-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head"></path></marker>' +
+      '<marker id="dep-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head bad"></path></marker></defs><g id="depLines"></g></svg>';
+    drawDeps();
+    var db = $('btnDeps'); if (db) { db.textContent = S.showDeps ? 'Afhankelijkheden verbergen' : 'Afhankelijkheden tonen'; db.setAttribute('aria-pressed', String(!!S.showDeps)); }
     var vt = $('btnView'); if (vt) { vt.textContent = S.expandAll ? 'Focus op één outcome' : 'Alles uitklappen'; vt.setAttribute('aria-pressed', String(!!S.expandAll)); }
   }
+
+  function depsOf(m) { return (Array.isArray(m.dependsOn) ? m.dependsOn : []).filter(function (id) { return S.milestones[id] && id !== m.id; }); }
+  function blockedBy(id) { return msList().filter(function (m) { return depsOf(m).indexOf(id) >= 0; }); }
+  function depConflict(m, pre) { return iterOf(pre) > iterOf(m) || pre.status === 'missed'; }
+  function depIssues(m) {
+    return depsOf(m).map(function (id) { return S.milestones[id] ? Object.assign({ id: id }, S.milestones[id]) : null; }).filter(function (p) { return p && depConflict(m, p); });
+  }
+  var depRaf = null;
+  function drawDeps() {
+    if (depRaf) cancelAnimationFrame(depRaf);
+    depRaf = requestAnimationFrame(function () {
+      depRaf = null;
+      var board = $('board'), g = $('depLines'), svg = board && board.querySelector('svg.deps'); if (!g || !svg) return;
+      svg.setAttribute('width', board.scrollWidth); svg.setAttribute('height', board.scrollHeight);
+      if (!S.showDeps) { g.innerHTML = ''; return; }
+      var br = board.getBoundingClientRect(), focusId = (S.sel && S.sel.kind === 'm' && S.sel.id) || S.hoverMs || null, out = '';
+      function box(id) { var el = board.querySelector('[data-act="ms"][data-id="' + id + '"]'); if (!el) return null; var r = el.getBoundingClientRect(); return { l: r.left - br.left, r: r.right - br.left, t: r.top - br.top, b: r.bottom - br.top, cy: r.top - br.top + r.height / 2 }; }
+      msList().forEach(function (m) {
+        depsOf(m).forEach(function (pid) {
+          var a = box(pid), b = box(m.id); if (!a || !b) return;
+          var pre = Object.assign({ id: pid }, S.milestones[pid]), bad = depConflict(m, pre);
+          var sx = a.r, sy = a.cy, tx = b.l - 3, ty = b.cy, dx = Math.max(40, Math.abs(tx - sx) / 2);
+          var d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + dx).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - dx).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1);
+          var cls = 'dep' + (bad ? ' bad' : '') + (focusId ? (focusId === m.id || focusId === pid ? ' hl' : ' dim') : '');
+          out += '<path class="' + cls + '" d="' + d + '" marker-end="url(#' + (bad ? 'dep-b' : 'dep-a') + ')" data-from="' + esc(pid) + '" data-to="' + esc(m.id) + '"></path>';
+        });
+      });
+      g.innerHTML = out;
+    });
+  }
+  window.addEventListener('resize', drawDeps);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawDeps);
 
   function renderLegend() {
     $('legend').innerHTML = Object.keys(TYPES).map(function (k) { return '<span>' + diamond(k) + esc(TYPES[k].l) + ' mijlpaal</span>'; }).join('') +
       '<span><span aria-hidden="true" class="todayline"></span>Vandaag</span>' +
       '<span><span aria-hidden="true" style="display:inline-block;width:2px;height:14px;background:var(--ink)"></span>Verwachte voortgang op basis van de tijd in de PI</span>' +
-      '<span>Gestippelde rand: gepland, maar de iteratie is voorbij</span>';
+      '<span>Gestippelde rand: gepland, maar de iteratie is voorbij</span>' +
+      '<span><svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="28" y2="5" class="dep"></line><path d="M26 1L33 5L26 9z" class="dep-head"></path></svg>Hangt af van</span>' +
+      '<span><svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="28" y2="5" class="dep bad"></line><path d="M26 1L33 5L26 9z" class="dep-head bad"></path></svg>Afhankelijkheid klopt niet in de tijd</span>';
   }
 
   /* ---------- schrijven ---------- */
@@ -298,6 +336,7 @@
   function check(res) {
     if (res && res.error) {
       var e = res.error;
+      if (/depends_on/.test(e.message || '')) { toast('Afhankelijkheden zijn nog niet geactiveerd. Voer supabase/migrations/006_afhankelijkheden.sql uit in Supabase.'); return; }
       if (/tasks|outcome_ref|milestone_ref/.test(e.message || '')) { toast('De planner is nog niet geactiveerd. Voer supabase/migrations/005_planner_taken.sql uit in Supabase.'); return; }
       if (/hypothesis|commitment|bv_planned|bv_actual|checkins|learning|decision/.test(e.message || '')) { toast('De database mist nog kolommen. Voer supabase/migrations/004_outcome_based_lace.sql uit in Supabase.'); return; }
       if (/iteration_count|ip_iteration|iter_check/.test(e.message || '')) { toast('De database mist nog een aanpassing. Voer supabase/migrations/003_iteraties_instelbaar.sql uit in Supabase.'); return; }
@@ -364,6 +403,9 @@
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
   $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderViews(); });
+  $('btnDeps').addEventListener('click', function () { S.showDeps = !S.showDeps; saveView(); renderViews(); });
+  $('board').addEventListener('mouseover', function (e) { var c = e.target.closest('[data-act="ms"]'); var id = c ? c.dataset.id : null; if (id !== S.hoverMs) { S.hoverMs = id; drawDeps(); } });
+  $('board').addEventListener('mouseleave', function () { if (S.hoverMs) { S.hoverMs = null; drawDeps(); } });
   $('btnSettings').addEventListener('click', function () { openDrawer({ kind: 's' }); });
   try { $('myName').value = localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
   $('myName').addEventListener('input', function () { try { localStorage.setItem(NAME_KEY, $('myName').value.trim()); } catch (e) {} });
@@ -447,6 +489,28 @@
     var names = iterNames();
     return opt('', 'Geen', cur) + list.map(function (m) { return opt(m.id, (m.title || '(zonder titel)') + ' · ' + (names[iterOf(m)] || ''), cur); }).join('');
   }
+  function depOptions(m) {
+    var have = depsOf(m), names = iterNames(), blockers = blockedBy(m.id).map(function (x) { return x.id; });
+    var list = msList().filter(function (x) { return x.id !== m.id && have.indexOf(x.id) < 0 && blockers.indexOf(x.id) < 0; });
+    return opt('', 'Kies een mijlpaal…', '') + list.map(function (x) {
+      var where = x.row === 'art' ? 'ART' : (S.outcomes[x.row] ? S.outcomes[x.row].title : '');
+      return opt(x.id, (x.title || '(zonder titel)') + ' · ' + (names[iterOf(x)] || '') + (where ? ' · ' + where : ''), '');
+    }).join('');
+  }
+  function renderMsDeps() {
+    var el = $('mDeps'), bl = $('mBlocks'), sel2 = $('m-adddep'); if (!el || !S.sel) return;
+    var m = S.milestones[S.sel.id]; if (!m) return;
+    m = Object.assign({ id: S.sel.id }, m);
+    var names = iterNames();
+    el.innerHTML = depsOf(m).map(function (pid) {
+      var p = Object.assign({ id: pid }, S.milestones[pid]), bad = depConflict(m, p);
+      return '<li><span class="deprow' + (bad ? ' bad' : '') + '">' + diamond(p.type) + '<span class="st">Hangt af van <b>' + esc(p.title || '') + '</b><span class="meta">' + esc(names[iterOf(p)] || '') + ' · ' + esc(STATUS[p.status] || 'Gepland') + (bad ? ' · staat later gepland dan deze mijlpaal' : '') + '</span></span>' +
+        (S.readOnly ? '' : '<button type="button" class="x" aria-label="Afhankelijkheid verwijderen" data-d="deldep" data-id="' + esc(pid) + '">' + X_ICON + '</button>') + '</span></li>';
+    }).join('') || '<li class="note">Hangt nergens van af.</li>';
+    var b = blockedBy(m.id);
+    bl.innerHTML = b.length ? '<li class="note">Blokkeert: ' + b.map(function (x) { return esc(x.title || ''); }).join(', ') + '</li>' : '';
+    if (sel2 && sel2 !== document.activeElement) sel2.innerHTML = depOptions(m);
+  }
   function renderMsTasks() {
     var el = $('mTasks'); if (!el || !S.sel) return;
     var tk = tasksFor(S.sel.id);
@@ -488,6 +552,9 @@
         '<div class="sec"><h3>Leerpunt</h3><p class="note">Vooral bij leermijlpalen: wat hebben we geleerd, en wat doen we ermee?</p>' +
         '<label class="field">Wat hebben we geleerd?<textarea class="prose" id="m-learning" data-f="learning" rows="3" placeholder="bijv. RTE\'s gebruiken het dashboard alleen als het in de ART-sync zit"' + ro + '>' + esc(m.learning || '') + '</textarea></label>' +
         '<label class="field">Besluit<select id="m-decision" data-f="decision"' + ro + '>' + Object.keys(DECISION).map(function (k) { return opt(k, DECISION[k], m.decision || ''); }).join('') + '</select></label></div>' +
+        '<div class="sec"><h3>Afhankelijkheden</h3><ul id="mDeps" class="mtasks"></ul>' +
+        (S.readOnly ? '' : '<label class="field">Hangt ook af van<select id="m-adddep">' + depOptions(m) + '</select></label>') +
+        '<ul id="mBlocks" class="mtasks"></ul></div>' +
         '<div class="sec"><h3>Taken</h3><ul id="mTasks" class="mtasks"></ul>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addtask" style="align-self:flex-start">+ Taak voor deze mijlpaal</button>') + '</div>' +
         '<p class="note" id="m-who">' + esc(whoLabel(m)) + '</p>';
       foot = S.readOnly ? '' : '<button class="btn" type="button" data-d="left">← Eerder</button><button class="btn" type="button" data-d="right">Later →</button><span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
@@ -541,7 +608,7 @@
       '<div class="dbody">' + body + '</div>' + (foot ? '<div class="dfoot">' + foot + '</div>' : '') + '</aside>';
     if (sel.kind === 'o') { renderKrList(true); renderCList(true); renderCiList(true); }
     if (sel.kind === 't') renderCkList(true);
-    if (sel.kind === 'm') renderMsTasks();
+    if (sel.kind === 'm') { renderMsTasks(); renderMsDeps(); }
     var first = r.querySelector('input,select'); if (first) first.focus();
   }
 
@@ -618,7 +685,7 @@
       var m = S.milestones[sel.id]; if (!m) { closeDrawer(); toast('Deze mijlpaal is verwijderd.'); return; }
       r.querySelectorAll('[data-f]').forEach(function (el) { if (el !== document.activeElement) { var v = el.dataset.f === 'iter' ? String(num(m.iter)) : (m[el.dataset.f] == null ? '' : m[el.dataset.f]); if (String(el.value) !== String(v)) el.value = v; } });
       var w = $('m-who'); if (w) w.textContent = whoLabel(m);
-      renderMsTasks();
+      renderMsTasks(); renderMsDeps();
     } else if (sel.kind === 't') {
       var t = S.tasks[sel.id]; if (!t) { closeDrawer(); toast('Deze taak is verwijderd.'); return; }
       r.querySelectorAll('[data-f]').forEach(function (el) { if (el === document.activeElement) return; var v = t[el.dataset.f]; v = v == null ? '' : v; if (String(el.value) !== String(v)) el.value = v; });
@@ -668,6 +735,12 @@
       }
       return;
     }
+    if (sel.kind === 'm' && el.id === 'm-adddep') {
+      if (!el.value) return;
+      var mx = S.milestones[sel.id]; if (!mx) return;
+      var nd = depsOf(Object.assign({ id: sel.id }, mx)).concat([el.value]);
+      queue('milestones', sel.id, { dependsOn: nd }, 0); renderMsDeps(); drawDeps(); return;
+    }
     if (sel.kind === 'm' && el.dataset.f) {
       var pm = {}; pm[el.dataset.f] = el.dataset.f === 'iter' ? num(el.value) : el.value;
       if (el.dataset.f === 'row') { pm.contrib = ''; var cSel = $('m-contrib'); if (cSel) { cSel.innerHTML = contribOptions(el.value, ''); cSel.disabled = el.value === 'art'; } if (el.value !== 'art') setFocus(el.value); }
@@ -713,11 +786,12 @@
     }
     if (sel.kind === 'm') {
       var m = S.milestones[sel.id]; if (!m) return;
+      if (d === 'deldep') { queue('milestones', sel.id, { dependsOn: depsOf(Object.assign({ id: sel.id }, m)).filter(function (x) { return x !== b.dataset.id; }) }, 0); renderMsDeps(); return; }
       if (d === 'addtask') { addTask({ outcome: m.row === 'art' ? '' : m.row, milestone: m.id, iter: iterOf(m) }); return; }
       if (d === 'left' || d === 'right') { queue('milestones', sel.id, { iter: Math.max(0, Math.min(lastCol(), iterOf(m) + (d === 'left' ? -1 : 1))) }, 0); syncDrawer(); }
       else if (d === 'askdel') $('delZone').innerHTML = '<span class="confirm">Mijlpaal verwijderen? <button class="btn danger" type="button" data-d="del">Ja, verwijderen</button><button class="btn" type="button" data-d="nodel">Nee</button></span>';
       else if (d === 'nodel') $('delZone').innerHTML = '<button class="btn danger" type="button" data-d="askdel">Verwijderen</button>';
-      else if (d === 'del') { unlinkTasks('milestone', sel.id); delete pending['milestones/' + sel.id]; delete S.milestones[sel.id]; track(S.sb.from('milestones').delete().eq('id', sel.id)); S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Mijlpaal verwijderd.'); }
+      else if (d === 'del') { var gone = sel.id; blockedBy(gone).forEach(function (x) { queue('milestones', x.id, { dependsOn: depsOf(x).filter(function (y) { return y !== gone; }) }, 0); }); unlinkTasks('milestone', sel.id); delete pending['milestones/' + sel.id]; delete S.milestones[sel.id]; track(S.sb.from('milestones').delete().eq('id', sel.id)); S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Mijlpaal verwijderd.'); }
       return;
     }
     if (sel.kind === 'o') {

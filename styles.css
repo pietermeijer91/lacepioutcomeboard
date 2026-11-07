@@ -356,3 +356,22 @@ body.is-dragging .cell .add{opacity:0}
 .srow .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:500}
 .srow .cstat{font-size:11px;font-weight:600;white-space:nowrap}
 .sstack{display:flex;flex-direction:column;gap:8px}
+
+/* ---------- afhankelijkheden ---------- */
+:root{ --dep:#7A70C9; }
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){ --dep:#A99CF0; }}
+:root[data-theme="dark"]{ --dep:#A99CF0; }
+.board{position:relative}
+svg.deps{position:absolute;left:0;top:0;pointer-events:none;z-index:1;overflow:visible}
+.dep{fill:none;stroke:var(--dep);stroke-width:1.6;opacity:.75;transition:opacity .15s,stroke-width .15s}
+.dep.bad{stroke:var(--bad-bar);stroke-dasharray:6 4;opacity:.9}
+.dep.hl{opacity:1;stroke-width:2.6}
+.dep.dim{opacity:.15}
+.dep-head{fill:var(--dep)}
+.dep-head.bad{fill:var(--bad-bar)}
+.mdot{position:relative;z-index:2}
+.callout .cdep{font-size:10px;font-weight:600;color:var(--bad)}
+.deprow{display:flex;align-items:center;gap:10px;min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
+.deprow.bad{border-color:var(--bad-bar);background:var(--bad-bg)}
+.deprow .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.deprow .st b{font-weight:600}

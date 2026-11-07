@@ -32,6 +32,7 @@ create table if not exists public.milestones (
   status      text not null default 'planned' check (status in ('planned','done','risk','missed')),
   learning    text not null default '',
   decision    text not null default '',              -- '', continue, adjust, stop
+  depends_on  jsonb not null default '[]'::jsonb,   -- mijlpaal-id's waar deze op wacht
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text
