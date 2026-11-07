@@ -75,6 +75,21 @@ const shot = process.argv.includes('--shot');
     assert(await page.locator('#drawerRoot aside').count() === 0, 'zijpaneel opende na slepen');
   });
 
+  await check('afhankelijkheden: lijnen en conflict', async () => {
+    await page.click('.tab[data-view="board"]').catch(() => {});
+    await page.click('button[data-act="focus"][data-id="o1"]').catch(() => {});
+    await page.waitForTimeout(100);
+    assert(await page.locator('#depLines path.dep').count() >= 2, 'geen lijnen getekend');
+    assert(await page.locator('#depLines path.dep.bad').count() >= 1, 'conflict niet rood');
+    await page.click('button.callout[data-id="m4"]');
+    await page.selectOption('#m-adddep', 'm1');
+    await page.waitForTimeout(100);
+    assert(await page.locator('#mDeps .deprow').count() === 2, 'afhankelijkheid niet toegevoegd');
+    await page.click('.dhead [data-d="close"]');
+    await page.waitForTimeout(100);
+    assert(await page.locator('#depLines path[data-from="m1"][data-to="m4"]').count() === 1, 'nieuwe lijn ontbreekt');
+  });
+
   await check('mijlpaal toont gekoppelde taken', async () => {
     assert((await page.locator('button.callout[data-id="m4"] .ctasks').innerText()).includes('/2 taken'), 'geen taakteller op kaartje');
   });
