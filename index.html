@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LACE PI Outcome-bord</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="gate" hidden></div>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="eyebrow">LACE · PI-planning</p>
+      <h1>PI Outcome-bord</h1>
+      <p class="sub">Samen plannen richting outcomes: mijlpalen in de tijd, voortgang per key result. Wijzigingen zijn direct voor het hele team zichtbaar.</p>
+    </div>
+    <div class="actions">
+      <span class="live" id="live" data-state="loading"><span class="dot" aria-hidden="true"></span><span id="liveText">Verbinden…</span></span>
+      <span class="who" id="who"></span>
+      <button class="btn" type="button" id="btnLogout">Uitloggen</button>
+      <button class="btn" type="button" id="btnSettings">PI-instellingen</button>
+      <button class="btn primary" type="button" id="btnAddOutcome" disabled>+ PI-outcome</button>
+    </div>
+  </header>
+
+  <section class="tiles" aria-label="Samenvatting">
+    <div class="tile"><span class="k">Voortgang outcomes</span><span class="v num" id="tPct">0%</span><div class="bar" role="progressbar" aria-label="Totale voortgang" aria-valuemin="0" aria-valuemax="100" id="tBar" aria-valuenow="0"><div class="fill" id="tFill" style="width:0%"></div></div></div>
+    <div class="tile"><span class="k">Mijlpalen gehaald</span><span class="v num" id="tMs">0 / 0</span><span class="s" id="tMsSub">nog niets gepland</span></div>
+    <div class="tile"><span class="k">Risico of gemist</span><span class="v num" id="tRisk">0</span><span class="s">mijlpalen die aandacht vragen</span></div>
+    <div class="tile"><span class="k">Waar staan we</span><span class="v word" id="tNow">–</span><span class="s" id="tNowSub"></span></div>
+  </section>
+
+  <section class="boardbox" aria-label="Planning per iteratie">
+    <div class="board" id="board"><div class="empty">Bord laden…</div></div>
+  </section>
+
+  <footer class="legend" id="legend"></footer>
+</div>
+
+<div id="drawerRoot"></div>
+<div id="toastRoot" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
