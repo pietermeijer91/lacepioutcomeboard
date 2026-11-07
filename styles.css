@@ -220,3 +220,12 @@ footer.legend span{display:inline-flex;align-items:center;gap:6px}
 .cell.today::before{content:"";position:absolute;top:0;bottom:-1px;left:var(--tpos);width:2px;background:var(--today);opacity:.85;pointer-events:none;z-index:1}
 .row.head .it.now{position:relative}
 .legend .todayline{display:inline-block;width:2px;height:14px;background:var(--today)}
+
+/* slepen */
+@media (hover:hover){ .callout,.mdot{cursor:grab} }
+.callout.dragging,.mdot.dragging{opacity:.35}
+.ghost{position:fixed;z-index:40;pointer-events:none;margin:0;box-shadow:var(--shadow);cursor:grabbing;opacity:.95}
+.mdot.ghost{background:var(--surface)}
+body.is-dragging{cursor:grabbing;user-select:none}
+body.is-dragging .cell .add{opacity:0}
+.cell.drop-over{background:var(--accent-soft);outline:2px dashed var(--accent);outline-offset:-3px}

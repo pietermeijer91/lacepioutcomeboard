@@ -29,6 +29,7 @@ python3 -m http.server 8000
 ## Gebruik
 - **Focus-weergave**: klik op een outcome om die uit te klappen; de andere outcomes tonen dan alleen kleine ruitjes. Met “Alles uitklappen” zie je alles tegelijk.
 - **Banen per bijdrage**: elke bijdrage (wie/team) van een outcome krijgt een eigen baan. Een mijlpaal koppel je aan een bijdrage via “Bijdrage (baan)”.
+- **Slepen**: sleep een mijlpaal met de muis naar een andere iteratie, baan of outcome. Op telefoon en tablet verplaats je via het zijpaneel (Eerder/Later, Bijdrage).
 - **Vandaag-lijn**: een oranje lijn markeert de huidige dag; geplande mijlpalen in een voorbije iteratie krijgen een gestippelde rand.
 - **+ PI-outcome**: voeg een outcome toe en vul de key results in (start, doel, nu). De voortgang en de status (Gepland, Op koers, Aandacht, Achter, Behaald) worden berekend tegenover de verwachte voortgang op basis van de tijd in de PI.
 - **+ mijlpaal** in een iteratiekolom: plan een mijlpaal en houd de status bij (gepland, gehaald, risico, gemist).

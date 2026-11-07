@@ -132,10 +132,11 @@
     if (S.readOnly) return '';
     return '<button type="button" class="add" data-act="addms" data-row="' + esc(row) + '" data-iter="' + i + '" data-contrib="' + esc(contrib || '') + '" aria-label="Mijlpaal toevoegen in ' + esc(ITER_NAMES[i]) + '">+</button>';
   }
-  function cell(i, r, T, inner, extra) {
+  function cell(i, r, T, inner, extra, drop) {
     var cls = 'cell' + (i === T.nowIdx ? ' now' : '') + (i === T.todayIdx ? ' today' : '') + (extra ? ' ' + extra : '');
     var st = 'grid-column:' + (i + 3) + ';grid-row:' + r + (i === T.todayIdx ? ';--tpos:' + T.tpos + '%' : '');
-    return '<div class="' + cls + '" style="' + st + '">' + inner + '</div>';
+    var dz = drop ? ' data-drop-row="' + esc(drop.row) + '" data-drop-contrib="' + esc(drop.contrib) + '" data-drop-iter="' + i + '"' : '';
+    return '<div class="' + cls + '" style="' + st + '"' + dz + '>' + inner + '</div>';
   }
   function focusId(outs) {
     if (S.focus === '__none__') return null;
@@ -152,7 +153,7 @@
 
     var art = ms.filter(function (m) { return m.row === 'art'; });
     h += '<div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>ART- &amp; LACE-mijlpalen</h3><span class="meta">Events en vaste data voor het hele ART</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
-      ITER_NAMES.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, '')); }).join('') + '</div>';
+      ITER_NAMES.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div>';
 
     if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je bijdragen, key results en mijlpalen per iteratie toevoegen.</div>';
 
@@ -170,7 +171,7 @@
           '<div class="ocell" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
           '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + '</span></div>' +
           '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
-          ITER_NAMES.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>'); }).join('') +
+          ITER_NAMES.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
           '</div>';
         return;
       }
@@ -194,7 +195,7 @@
         var lms = ln.whole ? loose : oms.filter(function (m) { return m.contrib === ln.id; });
         h += '<div class="lane l' + first + (ln.whole ? ' whole' : '') + '" style="grid-column:2;grid-row:' + r + '"><b>' + esc(ln.owner || '–') + '</b>' + (ln.text ? '<span>' + esc(ln.text) + '</span>' : '') + '</div>';
         ITER_NAMES.forEach(function (nm, i) {
-          h += cell(i, r, T, lms.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ln.id), 'l' + first);
+          h += cell(i, r, T, lms.filter(function (m) { return num(m.iter) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ln.id), 'l' + first, { row: o.id, contrib: ln.id });
         });
       });
       h += '</div>';
@@ -260,6 +261,7 @@
   /* ---------- bord-events ---------- */
   $('board').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-act]'); if (!b) return;
+    if (drag.suppress) { drag.suppress = false; return; }
     var a = b.dataset.act, id = b.dataset.id;
     if (a === 'ms') { var mm = S.milestones[id]; if (mm && mm.row !== 'art' && !S.expandAll) setFocus(mm.row); openDrawer({ kind: 'm', id: id }); }
     else if (a === 'edit') openDrawer({ kind: 'o', id: id });
@@ -272,6 +274,61 @@
   $('btnSettings').addEventListener('click', function () { openDrawer({ kind: 's' }); });
   try { $('myName').value = localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
   $('myName').addEventListener('input', function () { try { localStorage.setItem(NAME_KEY, $('myName').value.trim()); } catch (e) {} });
+
+  /* ---------- slepen (muis/pen) ---------- */
+  var drag = { id: null, src: null, ghost: null, sx: 0, sy: 0, on: false, over: null, suppress: false };
+  function dropCellAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el ? el.closest('[data-drop-row]') : null;
+  }
+  $('board').addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'touch' || e.button !== 0 || S.readOnly || !S.ready) return;
+    var b = e.target.closest('.callout,.mdot'); if (!b) return;
+    drag.id = b.dataset.id; drag.src = b; drag.sx = e.clientX; drag.sy = e.clientY; drag.on = false;
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (!drag.id) return;
+    if (!drag.on) {
+      if (Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 6) return;
+      drag.on = true;
+      var r = drag.src.getBoundingClientRect();
+      var g = drag.src.cloneNode(true);
+      g.classList.add('ghost'); g.style.width = r.width + 'px';
+      g.style.left = '0px'; g.style.top = '0px';
+      drag.offX = e.clientX - r.left; drag.offY = e.clientY - r.top;
+      document.body.appendChild(g); drag.ghost = g;
+      drag.src.classList.add('dragging'); document.body.classList.add('is-dragging');
+    }
+    e.preventDefault();
+    drag.ghost.style.transform = 'translate(' + (e.clientX - drag.offX) + 'px,' + (e.clientY - drag.offY) + 'px)';
+    var c = dropCellAt(e.clientX, e.clientY);
+    if (c !== drag.over) { if (drag.over) drag.over.classList.remove('drop-over'); drag.over = c; if (c) c.classList.add('drop-over'); }
+    var box = $('board').parentNode, br = box.getBoundingClientRect();
+    if (e.clientX > br.right - 40) box.scrollLeft += 12; else if (e.clientX < br.left + 40) box.scrollLeft -= 12;
+  });
+  function endDrag(e, cancel) {
+    if (!drag.id) return;
+    var id = drag.id, was = drag.on, c = drag.over;
+    if (drag.ghost) drag.ghost.remove();
+    if (drag.src) drag.src.classList.remove('dragging');
+    if (c) c.classList.remove('drop-over');
+    document.body.classList.remove('is-dragging');
+    drag.id = null; drag.src = null; drag.ghost = null; drag.over = null; drag.on = false;
+    if (!was) return;
+    drag.suppress = true; setTimeout(function () { drag.suppress = false; }, 0);
+    if (cancel || !c) return;
+    var m = S.milestones[id]; if (!m) return;
+    var row = c.dataset.dropRow, iter = num(c.dataset.dropIter), contrib = c.dataset.dropContrib;
+    if (contrib === '*') contrib = m.row === row ? (m.contrib || '') : '';
+    if (row === 'art') contrib = '';
+    if (m.row === row && num(m.iter) === iter && (m.contrib || '') === contrib) return;
+    queue('milestones', id, { row: row, iter: iter, contrib: contrib }, 0);
+    syncDrawer();
+    toast('Verplaatst naar ' + ITER_NAMES[iter] + '.');
+  }
+  window.addEventListener('pointerup', function (e) { endDrag(e, false); });
+  window.addEventListener('pointercancel', function (e) { endDrag(e, true); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && drag.on) endDrag(e, true); });
 
   /* ---------- zijpaneel ---------- */
   var lastFocus = null;
