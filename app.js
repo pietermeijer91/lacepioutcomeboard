@@ -1,4 +1,4 @@
-/* LACE PI Outcome-bord — statische app op Supabase (database + realtime), zonder login. */
+/* LACE PI Outcome Board — statische app op Supabase (database + realtime), zonder login. */
 (function () {
   'use strict';
 
@@ -93,7 +93,7 @@
   function renderHeader() {
     var T = timeInfo();
     var name = S.settings.piName ? S.settings.piName + ' · ' : '';
-    $('eyebrow').textContent = 'LACE · ' + name + T.fmt(T.start) + ' ' + T.start.getFullYear() + ' – ' + T.fmt(T.end) + ' ' + T.end.getFullYear();
+    $('eyebrow').textContent = 'PI-planning · ' + name + T.fmt(T.start) + ' ' + T.start.getFullYear() + ' – ' + T.fmt(T.end) + ' ' + T.end.getFullYear();
     var outs = sortedOutcomes(), ms = msList();
     var tot = outs.length ? Math.round(outs.reduce(function (a, o) { return a + outcomeStats(o, T, ms).pct; }, 0) / outs.length) : 0;
     $('tPct').textContent = tot + '%'; $('tFill').style.width = tot + '%'; $('tBar').setAttribute('aria-valuenow', tot);
