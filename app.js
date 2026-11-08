@@ -40,12 +40,12 @@
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on', ogsmRef: 'ogsm_ref', ogsmExtra: 'ogsm_extra' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
 
-  var S = { sb: null, session: null, ready: false, outcomes: {}, milestones: {}, tasks: {}, view: 'board', pf: {}, syncIdx: 0, settings: { piStart: '2026-12-09', iterationWeeks: 2, piName: '', iterationCount: 4, ipIteration: true }, open: {}, sel: null, readOnly: false };
+  var S = { sb: null, session: null, ready: false, outcomes: {}, milestones: {}, tasks: {}, ogsm: {}, view: 'board', pf: {}, syncIdx: 0, settings: { piStart: '2026-12-09', iterationWeeks: 2, piName: '', iterationCount: 4, ipIteration: true }, open: {}, sel: null, readOnly: false };
   var pending = {};
   var saving = 0;
 
@@ -219,20 +219,48 @@
     }).join('') + '</ul></details>';
   }
 
+  function goalList() { return Object.keys(S.ogsm || {}).map(function (id) { return Object.assign({ id: id }, S.ogsm[id]); }).filter(function (g) { return g.kind === 'goal'; }).sort(function (a, b) { return num(a.order) - num(b.order) || String(a.code || '').localeCompare(String(b.code || '')); }); }
+  function objective() { var o = S.ogsm && S.ogsm.objective; return o ? (o.title || '') : ''; }
+  function ogColor(g) { var c = num(g.color); return c >= 1 && c <= 6 ? c : 1; }
+  function ogsmGroups(outs) {
+    var goals = goalList(), byId = {}; goals.forEach(function (g) { byId[g.id] = { goal: g, outs: [] }; });
+    var none = { goal: null, outs: [] };
+    outs.forEach(function (o) { (byId[o.ogsmRef] || none).outs.push(o); });
+    return goals.map(function (g) { return byId[g.id]; }).filter(function (g) { return g.outs.length; }).concat(none.outs.length ? [none] : []);
+  }
+  function extraGoals(o) {
+    var ex = (Array.isArray(o.ogsmExtra) ? o.ogsmExtra : []).filter(function (id) { return S.ogsm[id] && id !== o.ogsmRef; });
+    if (!ex.length) return '';
+    return '<span class="ogextra">Draagt ook bij aan ' + ex.map(function (id) { var g = S.ogsm[id]; return '<span class="ogtag ogc-' + ogColor(g) + '">' + esc(g.code || g.title || '') + '</span>'; }).join(' ') + '</span>';
+  }
+  function renderOgsmBanner() {
+    var el = $('ogsmBanner'); if (!el) return;
+    if (S.ogsmMissing) { el.innerHTML = '<p class="ogwarn">OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.</p>'; return; }
+    var obj = objective(), goals = goalList(), outs = sortedOutcomes();
+    var empty = goals.filter(function (g) { return !outs.some(function (o) { return o.ogsmRef === g.id || (Array.isArray(o.ogsmExtra) && o.ogsmExtra.indexOf(g.id) >= 0); }); });
+    var unl = outs.filter(function (o) { return !o.ogsmRef || !S.ogsm[o.ogsmRef]; }).length;
+    var h = '<div class="ogobj"><span class="ogobj-l">OGSM-ambitie</span>' + (obj ? '<b>' + esc(obj) + '</b>' : '<b class="muted">Nog niet ingevuld</b>') +
+      (S.readOnly ? '' : '<button type="button" class="mini edit" data-ogact="manage">' + (goals.length || obj ? '✎ OGSM beheren' : '+ OGSM invullen') + '</button>') + '</div>';
+    if (empty.length || unl) h += '<div class="ogchips">' + empty.map(function (g) { return '<span class="ogwarn">' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + ' heeft deze PI geen outcome</span>'; }).join('') +
+      (unl ? '<span class="ogchip">' + unl + (unl === 1 ? ' outcome' : ' outcomes') + ' nog niet gekoppeld aan een OGSM-doel</span>' : '') + '</div>';
+    el.innerHTML = h;
+  }
+
   function renderBoard() {
     if (!S.ready) { $('board').innerHTML = '<div class="empty">Bord laden…</div>'; return; }
     var T = timeInfo(), ms = msList(), outs = sortedOutcomes(), fid = focusId(outs);
-    var h = '<div class="row head"><div>PI-outcome</div><div>Bijdragen</div>' + T.iters.map(function (it, i) {
+    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="row head"><div>PI-outcome</div><div>Bijdragen</div>' + T.iters.map(function (it, i) {
       return '<div class="it' + (i === T.nowIdx ? ' now' : '') + '">' + esc(it.name) + (i === T.nowIdx ? '<span class="nowpill">Nu</span>' : '') + '<span class="dates">' + esc(it.dates) + '</span></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div></div></div>';
 
     var art = ms.filter(function (m) { return m.row === 'art'; });
-    h += '<div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>ART- &amp; LACE-mijlpalen</h3><span class="meta">Events en vaste data voor het hele ART</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
-      T.iters.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div>';
+    h += '<div class="ogroup ritme"><div class="ogcell ogempty"></div><div class="ogrows"><div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>LACE-ritme</h3><span class="meta">Vaste teammomenten, zoals PI Planning en Inspect &amp; Adapt</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
+      T.iters.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div></div></div>';
 
     if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je bijdragen, key results en mijlpalen per iteratie toevoegen.</div>';
 
-    outs.forEach(function (o) {
+    function outcomeRow(o) {
+      var h = '';
       var st = outcomeStats(o, T, ms);
       var expanded = S.expandAll || o.id === fid;
       var krs = Array.isArray(o.krs) ? o.krs : [], cs = Array.isArray(o.contribs) ? o.contribs : [];
@@ -243,13 +271,13 @@
       if (!expanded) {
         var owners = cs.map(function (c) { return c.owner; }).filter(Boolean);
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
-          '<div class="ocell" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
-          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' +
+          '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
+          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
           '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
           T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
           '</div>';
-        return;
+        return h;
       }
 
       var ids = {}; cs.forEach(function (c) { ids[c.id] = 1; });
@@ -259,10 +287,10 @@
       var n = lanes.length;
 
       h += '<div class="row focus' + (sel ? ' sel' : '') + '">' +
-        '<div class="ocell" style="grid-column:1;grid-row:1 / span ' + n + '">' +
+        '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1 / span ' + n + '">' +
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
         '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
-        (o.commitment === 'stretch' ? '<span class="tag">Stretch-outcome</span>' : '') +
+        (o.commitment === 'stretch' ? '<span class="tag">Stretch-outcome</span>' : '') + extraGoals(o) +
         (o.hypothesis ? '<p class="hyp"><span class="lbl">Hypothese</span>' + esc(o.hypothesis) + '</p>' : '') +
         '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + (k.kind ? ' <span class="tag k-' + esc(k.kind) + '">' + KIND[k.kind] + '</span>' : '') + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
         (krs.length && krs.every(function (k) { return k.kind === 'lagging'; }) ? '<p class="warn">Alleen achterlopende indicatoren: waar stuur je tijdens de PI op?</p>' : '') +
@@ -279,12 +307,27 @@
         });
       });
       h += '</div>';
+      return h;
+    }
+
+    ogsmGroups(outs).forEach(function (g) {
+      var stats = g.outs.map(function (o) { return outcomeStats(o, T, ms).pct; });
+      var avg = stats.length ? Math.round(stats.reduce(function (a2, b2) { return a2 + b2; }, 0) / stats.length) : 0;
+      var left = g.goal
+        ? '<div class="ogcell ogc-' + ogColor(g.goal) + '" data-og="' + esc(g.goal.id) + '"><span class="ogcode">' + esc(g.goal.code || 'Doel') + '</span><b>' + esc(g.goal.title || '(zonder titel)') + '</b>' +
+          (g.goal.strategy ? '<span class="ogsub"><i>Strategie</i>' + esc(g.goal.strategy) + '</span>' : '') +
+          (g.goal.measure ? '<span class="ogsub"><i>Meetwaarde</i>' + esc(g.goal.measure) + '</span>' : '') +
+          '<span class="ogstat">' + g.outs.length + (g.outs.length === 1 ? ' outcome' : ' outcomes') + ' · ' + avg + '%</span>' +
+          '<div class="ogbar" role="progressbar" aria-label="Voortgang doel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + avg + '"><span style="width:' + avg + '%"></span></div></div>'
+        : '<div class="ogcell ogc-none" data-og="_none"><b>Nog niet gekoppeld</b><span class="ogsub">Aan welk OGSM-doel draagt dit bij? Kies het bij Bewerken.</span></div>';
+      h += '<div class="ogroup">' + left + '<div class="ogrows">' + g.outs.map(outcomeRow).join('') + '</div></div>';
     });
     if (!S.readOnly) h += '<div class="addrow"><button type="button" class="btn ghost" data-act="addoutcome">+ PI-outcome toevoegen</button></div>';
     $('board').style.setProperty('--cols', T.iters.length);
+    renderOgsmBanner();
     $('board').innerHTML = h + '<svg class="deps" aria-hidden="true"><defs>' +
       '<marker id="dep-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head"></path></marker>' +
-      '<marker id="dep-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head bad"></path></marker></defs><g id="depLines"></g></svg>';
+      '<marker id="dep-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head bad"></path></marker></defs><g id="ogLines"></g><g id="depLines"></g></svg>';
     drawDeps();
     var db = $('btnDeps'); if (db) { db.textContent = S.showDeps ? 'Afhankelijkheden verbergen' : 'Afhankelijkheden tonen'; db.setAttribute('aria-pressed', String(!!S.showDeps)); }
     var vt = $('btnView'); if (vt) { vt.textContent = S.expandAll ? 'Focus op één outcome' : 'Alles uitklappen'; vt.setAttribute('aria-pressed', String(!!S.expandAll)); }
@@ -303,6 +346,18 @@
       depRaf = null;
       var board = $('board'), g = $('depLines'), svg = board && board.querySelector('svg.deps'); if (!g || !svg) return;
       svg.setAttribute('width', board.scrollWidth); svg.setAttribute('height', board.scrollHeight);
+      var br0 = board.getBoundingClientRect(), og = '';
+      board.querySelectorAll('[data-og]').forEach(function (blk) {
+        var gid = blk.dataset.og, rows = blk.parentNode.querySelectorAll('[data-oid]'), r0 = blk.getBoundingClientRect();
+        var sx = r0.right - br0.left - 10, cls = gid === '_none' ? 'ogl none' : 'ogl ogc-' + (S.ogsm[gid] ? ogColor(S.ogsm[gid]) : 1);
+        rows.forEach(function (oc) {
+          var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + 24;
+          og += '<path class="' + cls + '" d="M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + '"></path>' +
+            '<circle class="' + cls + ' dot" cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="3"></circle>';
+        });
+        if (rows.length) og += '<circle class="' + cls + ' dot" cx="' + sx.toFixed(1) + '" cy="' + (Math.min(r0.top + 28, r0.bottom - 16) - br0.top).toFixed(1) + '" r="3.5"></circle>';
+      });
+      var ogl = $('ogLines'); if (ogl) ogl.innerHTML = og;
       if (!S.showDeps) { g.innerHTML = ''; return; }
       var br = board.getBoundingClientRect(), focusId = (S.sel && S.sel.kind === 'm' && S.sel.id) || S.hoverMs || null, out = '';
       function box(id) { var el = board.querySelector('[data-act="ms"][data-id="' + id + '"]'); if (!el) return null; var r = el.getBoundingClientRect(); return { l: r.left - br.left, r: r.right - br.left, t: r.top - br.top, b: r.bottom - br.top, cy: r.top - br.top + r.height / 2 }; }
@@ -336,6 +391,7 @@
   function check(res) {
     if (res && res.error) {
       var e = res.error;
+      if (/ogsm/.test(e.message || '')) { toast('OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.'); return; }
       if (/depends_on/.test(e.message || '')) { toast('Afhankelijkheden zijn nog niet geactiveerd. Voer supabase/migrations/006_afhankelijkheden.sql uit in Supabase.'); return; }
       if (/tasks|outcome_ref|milestone_ref/.test(e.message || '')) { toast('De planner is nog niet geactiveerd. Voer supabase/migrations/005_planner_taken.sql uit in Supabase.'); return; }
       if (/hypothesis|commitment|bv_planned|bv_actual|checkins|learning|decision/.test(e.message || '')) { toast('De database mist nog kolommen. Voer supabase/migrations/004_outcome_based_lace.sql uit in Supabase.'); return; }
@@ -346,7 +402,7 @@
     }
   }
   function track(promise) { saving++; setLive(); return Promise.resolve(promise).then(check, function () { toast('Opslaan mislukt. Controleer je verbinding en probeer het opnieuw.'); }).then(function () { saving--; setLive(); }); }
-  function storeFor(col) { return col === 'outcomes' ? S.outcomes : col === 'tasks' ? S.tasks : S.milestones; }
+  function storeFor(col) { return col === 'outcomes' ? S.outcomes : col === 'tasks' ? S.tasks : col === 'ogsm' ? S.ogsm : S.milestones; }
   function queue(col, id, patch, delay) {
     var k = col + '/' + id;
     var p = pending[k] || (pending[k] = { col: col, id: id, patch: {}, t: null });
@@ -403,6 +459,10 @@
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
   $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderViews(); });
+  $('ogsmBanner').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ogact]'); if (!b) return;
+    openDrawer({ kind: 's' }); var sec = $('ogSection'); if (sec) { sec.scrollIntoView({ block: 'start' }); var f = $('og-obj'); if (f && !f.value) f.focus(); }
+  });
   $('btnDeps').addEventListener('click', function () { S.showDeps = !S.showDeps; saveView(); renderViews(); });
   $('board').addEventListener('mouseover', function (e) { var c = e.target.closest('[data-act="ms"]'); var id = c ? c.dataset.id : null; if (id !== S.hoverMs) { S.hoverMs = id; drawDeps(); } });
   $('board').addEventListener('mouseleave', function () { if (S.hoverMs) { S.hoverMs = null; drawDeps(); } });
@@ -493,7 +553,7 @@
     var have = depsOf(m), names = iterNames(), blockers = blockedBy(m.id).map(function (x) { return x.id; });
     var list = msList().filter(function (x) { return x.id !== m.id && have.indexOf(x.id) < 0 && blockers.indexOf(x.id) < 0; });
     return opt('', 'Kies een mijlpaal…', '') + list.map(function (x) {
-      var where = x.row === 'art' ? 'ART' : (S.outcomes[x.row] ? S.outcomes[x.row].title : '');
+      var where = x.row === 'art' ? 'LACE-ritme' : (S.outcomes[x.row] ? S.outcomes[x.row].title : '');
       return opt(x.id, (x.title || '(zonder titel)') + ' · ' + (names[iterOf(x)] || '') + (where ? ' · ' + where : ''), '');
     }).join('');
   }
@@ -510,6 +570,28 @@
     var b = blockedBy(m.id);
     bl.innerHTML = b.length ? '<li class="note">Blokkeert: ' + b.map(function (x) { return esc(x.title || ''); }).join(', ') + '</li>' : '';
     if (sel2 && sel2 !== document.activeElement) sel2.innerHTML = depOptions(m);
+  }
+  var OG_COLORS = { 1: 'Groen', 2: 'Paars', 3: 'Koraal', 4: 'Blauw', 5: 'Roze', 6: 'Oker' };
+  function renderOgList(force) {
+    var el = $('ogList'); if (!el) return;
+    var goals = goalList(), ro = S.readOnly ? ' disabled' : '';
+    if (!force && el.dataset.sig === sig(goals)) {
+      el.querySelectorAll('[data-g]').forEach(function (inp) { if (inp === document.activeElement) return; var g = S.ogsm[inp.dataset.g]; if (!g) return; var v = g[inp.dataset.gf]; v = v == null ? '' : v; if (String(inp.value) !== String(v)) inp.value = v; });
+      return;
+    }
+    var a = document.activeElement, keep = a && a.dataset && a.dataset.g ? [a.dataset.g, a.dataset.gf] : null;
+    el.dataset.sig = sig(goals);
+    el.innerHTML = goals.map(function (g) {
+      var id = esc(g.id);
+      return '<div class="ogedit ogc-' + ogColor(g) + '"><div class="ogedit-top">' +
+        '<input type="text" class="code" aria-label="Code" placeholder="G1" data-g="' + id + '" data-gf="code" value="' + esc(g.code || '') + '"' + ro + '>' +
+        '<input type="text" aria-label="Doel" placeholder="Doel uit de OGSM" data-g="' + id + '" data-gf="title" value="' + esc(g.title || '') + '"' + ro + '>' +
+        '<select aria-label="Kleur" data-g="' + id + '" data-gf="color"' + ro + '>' + Object.keys(OG_COLORS).map(function (k) { return opt(k, OG_COLORS[k], ogColor(g)); }).join('') + '</select>' +
+        (S.readOnly ? '' : '<span data-delzone="' + id + '"><button type="button" class="x" aria-label="Doel verwijderen" data-d="delgoal" data-id="' + id + '">' + X_ICON + '</button></span>') + '</div>' +
+        '<input type="text" aria-label="Strategie" placeholder="Strategie (S)" data-g="' + id + '" data-gf="strategy" value="' + esc(g.strategy || '') + '"' + ro + '>' +
+        '<input type="text" aria-label="Meetwaarde" placeholder="Meetwaarde (M), bijv. KPI en doelwaarde" data-g="' + id + '" data-gf="measure" value="' + esc(g.measure || '') + '"' + ro + '></div>';
+    }).join('') || '<p class="note">Nog geen doelen.</p>';
+    if (keep) { var n = el.querySelector('[data-g="' + keep[0] + '"][data-gf="' + keep[1] + '"]'); if (n) n.focus(); }
   }
   function renderMsTasks() {
     var el = $('mTasks'); if (!el || !S.sel) return;
@@ -529,7 +611,7 @@
     el.innerHTML = ck.map(function (c) { var id = esc(c.id); return '<li><input type="checkbox" aria-label="Afgevinkt" data-ck="' + id + '" data-ckf="done"' + (c.done ? ' checked' : '') + ro + '><input type="text" aria-label="Checklistpunt" data-ck="' + id + '" data-ckf="text" value="' + esc(c.text || '') + '"' + ro + '>' + (S.readOnly ? '' : '<button type="button" class="x" aria-label="Punt verwijderen" data-d="delck" data-id="' + id + '">' + X_ICON + '</button>') + '</li>'; }).join('') || '<li class="note">Nog geen punten.</li>';
   }
   function contribOptions(rowId, cur) {
-    if (rowId === 'art') return opt('', '— (ART-mijlpaal)', '');
+    if (rowId === 'art') return opt('', '— (LACE-ritme)', '');
     var o = S.outcomes[rowId], cs = o && Array.isArray(o.contribs) ? o.contribs : [];
     var has = cs.some(function (c) { return c.id === cur; });
     return opt('', 'Hele outcome', has ? cur : '') + cs.map(function (c) { return opt(c.id, (c.owner || '–') + (c.text ? ' – ' + c.text : ''), cur); }).join('');
@@ -546,11 +628,11 @@
       body = '<label class="field">Titel<input id="m-title" data-f="title" type="text" value="' + esc(m.title) + '"' + ro + '></label>' +
         '<div class="two"><label class="field">Soort<select id="m-type" data-f="type"' + ro + '>' + Object.keys(TYPES).map(function (k) { return opt(k, TYPES[k].l, m.type); }).join('') + '</select></label>' +
         '<label class="field">Status<select id="m-status" data-f="status"' + ro + '>' + Object.keys(STATUS).map(function (k) { return opt(k, STATUS[k], m.status || 'planned'); }).join('') + '</select></label>' +
-        '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + opt('art', 'ART- & LACE-mijlpalen', m.row) + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
+        '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + opt('art', 'LACE-ritme', m.row) + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
         '<label class="field">Bijdrage (baan)<select id="m-contrib" data-f="contrib"' + (S.readOnly || m.row === 'art' ? ' disabled' : '') + '>' + contribOptions(m.row, m.contrib) + '</select></label>' +
         '<label class="field">Iteratie<select id="m-iter" data-f="iter"' + ro + '>' + iterNames().map(function (n, i) { return opt(i, n, iterOf(m)); }).join('') + '</select></label></div>' +
         '<div class="sec"><h3>Leerpunt</h3><p class="note">Vooral bij leermijlpalen: wat hebben we geleerd, en wat doen we ermee?</p>' +
-        '<label class="field">Wat hebben we geleerd?<textarea class="prose" id="m-learning" data-f="learning" rows="3" placeholder="bijv. RTE\'s gebruiken het dashboard alleen als het in de ART-sync zit"' + ro + '>' + esc(m.learning || '') + '</textarea></label>' +
+        '<label class="field">Wat hebben we geleerd?<textarea class="prose" id="m-learning" data-f="learning" rows="3" placeholder="bijv. teams gebruiken het dashboard alleen als het in hun sync zit"' + ro + '>' + esc(m.learning || '') + '</textarea></label>' +
         '<label class="field">Besluit<select id="m-decision" data-f="decision"' + ro + '>' + Object.keys(DECISION).map(function (k) { return opt(k, DECISION[k], m.decision || ''); }).join('') + '</select></label></div>' +
         '<div class="sec"><h3>Afhankelijkheden</h3><ul id="mDeps" class="mtasks"></ul>' +
         (S.readOnly ? '' : '<label class="field">Hangt ook af van<select id="m-adddep">' + depOptions(m) + '</select></label>') +
@@ -575,7 +657,11 @@
     } else if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) { closeDrawer(); return; }
       title = 'PI-outcome';
+      var goals = goalList();
       body = '<label class="field">Outcome<input id="o-title" class="big" data-f="title" type="text" value="' + esc(o.title) + '"' + ro + '></label>' +
+        (S.ogsmMissing ? '' : '<div class="sec"><label class="field">OGSM-doel<select id="o-ogsm" data-f="ogsmRef"' + ro + '>' + opt('', 'Nog niet gekoppeld', o.ogsmRef || '') + goals.map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.ogsmRef || ''); }).join('') + '</select></label>' +
+          (goals.length > 1 ? '<div class="ogx"><span class="h">Draagt ook bij aan</span>' + goals.map(function (g) { return '<label class="ogxl"><input type="checkbox" data-ogx="' + esc(g.id) + '"' + ((o.ogsmExtra || []).indexOf(g.id) >= 0 ? ' checked' : '') + (g.id === o.ogsmRef ? ' disabled' : '') + ro + '>' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + '</label>'; }).join('') + '</div>' : '') +
+          (goals.length ? '' : '<p class="note">Nog geen OGSM-doelen. Vul ze in via PI-instellingen › OGSM.</p>') + '</div>') +
         '<label class="field">Hypothese<textarea class="prose" id="o-hyp" data-f="hypothesis" rows="3" placeholder="Wij geloven dat [aanpak] leidt tot [resultaat]. We weten dat het werkt als [meetbaar signaal]."' + ro + '>' + esc(o.hypothesis || '') + '</textarea></label>' +
         '<div class="three"><label class="field">Commitment<select id="o-commit" data-f="commitment"' + ro + '>' + opt('committed', 'Committed', o.commitment || 'committed') + opt('stretch', 'Stretch (uncommitted)', o.commitment || 'committed') + '</select></label>' +
         '<label class="field">BV gepland (1–10)<input id="o-bvp" data-f="bvPlanned" type="number" min="1" max="10" value="' + esc(o.bvPlanned == null ? '' : o.bvPlanned) + '"' + ro + '></label>' +
@@ -600,6 +686,10 @@
         '<div class="two"><label class="field">Aantal iteraties<select id="s-count" data-s="iterationCount"' + ro + '>' + [2, 3, 4, 5, 6].map(function (n) { return opt(n, n + ' iteraties', num(s.iterationCount) || 4); }).join('') + '</select></label>' +
         '<label class="field">IP-iteratie<select id="s-ip" data-s="ipIteration"' + ro + '>' + opt('true', 'Ja, aparte IP-iteratie', String(s.ipIteration !== false)) + opt('false', 'Nee', String(s.ipIteration !== false)) + '</select></label></div>' +
         '<p class="note">Na de laatste iteratie volgt altijd een kolom voor de volgende PI. Deze instellingen gelden voor iedereen.</p>' +
+        (S.ogsmMissing ? '<div class="sec"><h3>OGSM</h3><p class="note">OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.</p></div>' :
+        '<div class="sec" id="ogSection"><h3>OGSM</h3><p class="note">Vul de ambitie en de doelen uit jullie OGSM in. Outcomes koppel je daarna aan een doel; het bord groepeert ze per doel.</p>' +
+        '<label class="field">Ambitie (Objective)<input id="og-obj" data-ogobj="1" type="text" value="' + esc(objective()) + '" placeholder="De ambitie uit jullie OGSM"' + ro + '></label>' +
+        '<div id="ogList" class="sec"></div>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addgoal" style="align-self:flex-start">+ Doel</button>') + '</div>') +
         (S.readOnly ? '' : '<div class="sec"><h3>Gegevens overnemen</h3><p class="note">Plak hier de tekst uit “Delen / importeren” van het eerdere canvas-bord. Outcomes en mijlpalen worden toegevoegd aan dit bord.</p>' +
         '<label class="field">Bordgegevens<textarea id="s-import" rows="6"></textarea></label><div class="actions"><button class="btn" type="button" data-d="import">Toevoegen aan bord</button><span class="msg" id="importMsg" role="status"></span></div></div>');
     }
@@ -608,6 +698,7 @@
       '<div class="dbody">' + body + '</div>' + (foot ? '<div class="dfoot">' + foot + '</div>' : '') + '</aside>';
     if (sel.kind === 'o') { renderKrList(true); renderCList(true); renderCiList(true); }
     if (sel.kind === 't') renderCkList(true);
+    if (sel.kind === 's') renderOgList(true);
     if (sel.kind === 'm') { renderMsTasks(); renderMsDeps(); }
     var first = r.querySelector('input,select'); if (first) first.focus();
   }
@@ -702,6 +793,8 @@
       var w2 = $('o-who'); if (w2) w2.textContent = whoLabel(o);
     } else {
       r.querySelectorAll('[data-s]').forEach(function (el) { if (el !== document.activeElement) { var v = S.settings[el.dataset.s]; if (v != null && String(el.value) !== String(v)) el.value = v; } });
+      var ob = $('og-obj'); if (ob && ob !== document.activeElement && ob.value !== objective()) ob.value = objective();
+      renderOgList(false);
     }
   }
 
@@ -714,6 +807,17 @@
 
   $('drawerRoot').addEventListener('input', function (e) {
     var el = e.target, sel = S.sel; if (!sel || !S.ready || S.readOnly) return;
+    if (el.dataset.ogobj) {
+      if (S.ogsm.objective) queue('ogsm', 'objective', { title: el.value });
+      else insert('ogsm', 'objective', Object.assign({ kind: 'objective', title: el.value, order: 0 }, meta()));
+      renderOgsmBanner(); return;
+    }
+    if (el.dataset.g) {
+      var pg = {}; pg[el.dataset.gf] = el.dataset.gf === 'color' ? num(el.value) : el.value;
+      queue('ogsm', el.dataset.g, pg, el.tagName === 'SELECT' ? 0 : 450);
+      if (el.dataset.gf === 'color') { var card = el.closest('.ogedit'); if (card) card.className = 'ogedit ogc-' + num(el.value); }
+      return;
+    }
     if (el.dataset.s) {
       var v = (el.dataset.s === 'iterationWeeks' || el.dataset.s === 'iterationCount') ? num(el.value) : el.dataset.s === 'ipIteration' ? el.value === 'true' : el.value;
       if (el.dataset.s === 'piStart' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
@@ -750,6 +854,7 @@
     }
     if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) return;
+      if (el.dataset.f === 'ogsmRef') { $('drawerRoot').querySelectorAll('[data-ogx]').forEach(function (c) { c.disabled = c.dataset.ogx === el.value; }); }
       if (el.dataset.f) {
         var po = {}, f0 = el.dataset.f;
         if (f0 === 'bvPlanned' || f0 === 'bvActual') po[f0] = el.value === '' ? null : Math.max(0, Math.min(10, num(el.value)));
@@ -763,6 +868,12 @@
 
   $('drawerRoot').addEventListener('change', function (e) {
     var el = e.target, sel = S.sel;
+    if (sel && sel.kind === 'o' && el.dataset.ogx && !S.readOnly) {
+      var ox = S.outcomes[sel.id]; if (!ox) return;
+      var ex = (Array.isArray(ox.ogsmExtra) ? ox.ogsmExtra : []).filter(function (id) { return id !== el.dataset.ogx; });
+      if (el.checked) ex.push(el.dataset.ogx);
+      queue('outcomes', sel.id, { ogsmExtra: ex }, 0); return;
+    }
     if (!sel || sel.kind !== 't' || el.type !== 'checkbox' || !el.dataset.ck || S.readOnly) return;
     var tk = S.tasks[sel.id]; if (!tk) return;
     var ck = clone(tk.checklist || []); ck.forEach(function (c) { if (c.id === el.dataset.ck) c.done = el.checked; });
@@ -827,6 +938,29 @@
         track(S.sb.from('outcomes').delete().eq('id', oid));
         S.sel = null; $('drawerRoot').innerHTML = ''; renderAll(); toast('Outcome verwijderd.');
       }
+      return;
+    }
+    if (sel.kind === 's' && d === 'addgoal') {
+      var n0 = goalList().length, gid = rid('g');
+      insert('ogsm', gid, Object.assign({ kind: 'goal', code: 'G' + (n0 + 1), title: '', strategy: '', measure: '', color: (n0 % 6) + 1, order: n0 + 1 }, meta()));
+      renderOgList(true); var ti = $('ogList').querySelector('[data-g="' + gid + '"][data-gf="title"]'); if (ti) ti.focus(); renderAll();
+      return;
+    }
+    if (sel.kind === 's' && d === 'delgoal') {
+      var z = $('drawerRoot').querySelector('[data-delzone="' + b.dataset.id + '"]');
+      if (z) z.innerHTML = '<span class="confirm">Verwijderen? <button class="btn danger" type="button" data-d="delgoal2" data-id="' + esc(b.dataset.id) + '">Ja</button></span>';
+      return;
+    }
+    if (sel.kind === 's' && d === 'delgoal2') {
+      var did = b.dataset.id;
+      sortedOutcomes().forEach(function (o) {
+        var p2 = {}; if (o.ogsmRef === did) p2.ogsmRef = '';
+        if (Array.isArray(o.ogsmExtra) && o.ogsmExtra.indexOf(did) >= 0) p2.ogsmExtra = o.ogsmExtra.filter(function (x) { return x !== did; });
+        if (Object.keys(p2).length) queue('outcomes', o.id, p2, 0);
+      });
+      delete pending['ogsm/' + did]; delete S.ogsm[did];
+      track(S.sb.from('ogsm').delete().eq('id', did));
+      renderOgList(true); renderAll(); toast('Doel verwijderd.');
       return;
     }
     if (sel.kind === 's' && d === 'import') doImport();
@@ -1045,7 +1179,7 @@
       var lateMs = ms.filter(function (m) { return msState(m, T).cls === 'late' || m.status === 'risk'; });
       body = '<div class="sgrid">' +
         '<section class="sbox"><h3>Nog geen check-in deze week</h3>' + (noCi.length ? '<ul class="slist">' + noCi.map(function (x) { return '<li><button type="button" class="srow" data-sact="go" data-i="' + outs.indexOf(x) + '"><span class="st">' + esc(x.title || '') + '</span><span class="cstat">Naar check-in →</span></button></li>'; }).join('') + '</ul>' : '<p class="okmsg">Alle outcomes zijn deze week ingecheckt.</p>') + '</section>' +
-        '<section class="sbox"><h3>Mijlpalen met risico of verlopen</h3>' + (lateMs.length ? '<ul class="slist">' + lateMs.map(function (m) { var s = msState(m, T); return '<li><button type="button" class="srow" data-sact="ms" data-id="' + esc(m.id) + '">' + diamond(m.type) + '<span class="st">' + esc(m.title || '') + '<span class="meta">' + esc((S.outcomes[m.row] ? S.outcomes[m.row].title : 'ART') + ' · ' + (names[iterOf(m)] || '')) + '</span></span><span class="cstat st-risk">' + s.icon + esc(s.label) + '</span></button></li>'; }).join('') + '</ul>' : '<p class="okmsg">Geen mijlpalen met risico.</p>') + '</section>' +
+        '<section class="sbox"><h3>Mijlpalen met risico of verlopen</h3>' + (lateMs.length ? '<ul class="slist">' + lateMs.map(function (m) { var s = msState(m, T); return '<li><button type="button" class="srow" data-sact="ms" data-id="' + esc(m.id) + '">' + diamond(m.type) + '<span class="st">' + esc(m.title || '') + '<span class="meta">' + esc((S.outcomes[m.row] ? S.outcomes[m.row].title : 'LACE-ritme') + ' · ' + (names[iterOf(m)] || '')) + '</span></span><span class="cstat st-risk">' + s.icon + esc(s.label) + '</span></button></li>'; }).join('') + '</ul>' : '<p class="okmsg">Geen mijlpalen met risico.</p>') + '</section>' +
         '<section class="sbox"><h3>Vastgelopen of te late taken</h3>' + (S.tasksMissing ? '<p class="meta">Planner nog niet geactiveerd.</p>' : stuckAll.length ? '<div class="sstack">' + stuckAll.map(function (t) { return tcard(t, T); }).join('') + '</div>' : '<p class="okmsg">Niets vastgelopen.</p>') + '</section>' +
         '</div>';
     }
@@ -1091,8 +1225,17 @@
       if (res[2].data[0]) applySettings(res[2].data[0]);
       S.ready = true; $('btnAddOutcome').disabled = false;
       renderAll();
-      return loadTasks();
+      return Promise.all([loadTasks(), loadOgsm()]);
     });
+  }
+  function loadOgsm() {
+    return Promise.resolve(S.sb.from('ogsm').select('*')).then(function (r) {
+      if (r.error) { S.ogsmMissing = true; renderAll(); return; }
+      S.ogsmMissing = false;
+      var g = {}; (r.data || []).forEach(function (row) { g[row.id] = overlay('ogsm', row.id, fromRow(row)); });
+      S.ogsm = g; renderAll();
+      if (!S.ogsmChannel) S.ogsmChannel = S.sb.channel('lace-pi-ogsm').on('postgres_changes', { event: '*', schema: 'public', table: 'ogsm' }, onChange('ogsm')).subscribe();
+    }, function () { S.ogsmMissing = true; renderAll(); });
   }
   function loadTasks() {
     return Promise.resolve(S.sb.from('tasks').select('*')).then(function (r) {
