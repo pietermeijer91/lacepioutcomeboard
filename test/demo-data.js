@@ -21,14 +21,14 @@
       { id: 'g2', kind: 'goal', code: 'G2', title: 'Wendbare organisatie', strategy: 'AI-native werken', measure: '3 teams werken AI-native', color: 2, sort_order: 2 }
     ],
     outcomes: [
-      { id: 'o1', title: 'Flow-metrics zichtbaar per team', sort_order: 1, ogsm_ref: 'g1', ogsm_extra: ['g2'], commitment: 'committed', bv_planned: 8, bv_actual: null,
+      { id: 'o1', title: 'Flow-metrics zichtbaar per team', sort_order: 1, ogsm_ref: 'g1', ogsm_extra: ['g2'], checks: { invloed: true, termijn: true, meetbaar: true, capaciteit: true, eerstestap: true }, commitment: 'committed', bv_planned: 8, bv_actual: null,
         hypothesis: 'Wij geloven dat flow-metrics per team leiden tot betere keuzes in PI Planning. We weten dat het werkt als teams de cijfers gebruiken in hun sync.',
         krs: [{ id: 'k1', text: '6 teams met een flow-dashboard', kind: 'lagging', start: 0, target: 6, current: 2, unit: '' },
               { id: 'k2', text: 'Teams die lead time meten', kind: 'leading', start: 20, target: 80, current: 35, unit: '%' }],
         contribs: [{ id: 'c1', owner: 'Voorbeeld A', text: 'Dashboard in Jira' }, { id: 'c2', owner: 'Voorbeeld B', text: 'Coaching teams' }],
         checkins: [{ id: 'ci1', date: daysAgo(14), confidence: 4, note: 'Goede start', by: 'Voorbeeld A' }, { id: 'ci2', date: daysAgo(5), confidence: 3, note: 'Data uit Jira onvolledig', by: 'Voorbeeld A' }],
         updated_by: 'Demo', updated_at: daysAgo(1) },
-      { id: 'o2', title: 'PI Planning in één dag', sort_order: 2, ogsm_ref: 'g1', commitment: 'stretch', bv_planned: 5, bv_actual: null, hypothesis: '',
+      { id: 'o2', title: 'PI Planning in één dag', sort_order: 2, ogsm_ref: 'g1', checks: { invloed: true, termijn: true, capaciteit: true }, commitment: 'stretch', bv_planned: 5, bv_actual: null, hypothesis: '',
         krs: [{ id: 'k3', text: 'Duur PI Planning in dagen', kind: 'lagging', start: 2, target: 1, current: 2, unit: '' }],
         contribs: [{ id: 'c3', owner: 'Voorbeeld C', text: 'Draaiboek' }], checkins: [] },
       { id: 'o3', title: '[Lege outcome om mee te testen]', sort_order: 3, commitment: 'committed', krs: [], contribs: [], checkins: [] }

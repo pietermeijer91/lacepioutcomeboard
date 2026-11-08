@@ -19,6 +19,7 @@ create table if not exists public.outcomes (
   checkins    jsonb not null default '[]'::jsonb,   -- [{id, date, confidence 1-5, note, by}]
   ogsm_ref    text not null default '',             -- OGSM-hoofddoel ('' = niet gekoppeld)
   ogsm_extra  jsonb not null default '[]'::jsonb,   -- extra OGSM-doelen
+  checks      jsonb not null default '{}'::jsonb,   -- outcome-check: invloed, termijn, meetbaar, capaciteit, eerstestap
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text
