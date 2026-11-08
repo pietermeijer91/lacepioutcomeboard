@@ -448,3 +448,18 @@ svg.deps .ogl.dot{fill:var(--og-line);stroke:none}
 .ogx .h{font-size:12px;font-weight:500;color:var(--muted)}
 .ogxl{display:flex;align-items:center;gap:8px;font-size:13px;min-height:32px}
 .ogxl input{width:18px;height:18px;accent-color:var(--accent)}
+
+/* ---------- outcome-check ---------- */
+.ochkline{display:flex}
+.ochk{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.ochk.ok{background:var(--ok-bg);color:var(--ok)}
+.ochk.part{background:var(--watch-bg);color:var(--watch)}
+.ochk.none{background:var(--plan-bg);color:var(--plan)}
+.ocheck h3{display:flex;align-items:center;gap:8px}
+.ochkrow{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.ochkrow:has(input:checked){border-color:var(--ok-bar);background:var(--ok-bg)}
+.ochkrow input{width:20px;height:20px;margin-top:1px;flex:none;accent-color:var(--ok-bar)}
+.ochktext{display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.4;color:var(--ink)}
+.ochktext b{font-size:14px}
+.ochkhint{font-size:12px;color:var(--muted);font-style:italic}
+.ochkhint:empty{display:none}

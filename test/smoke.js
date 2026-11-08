@@ -69,6 +69,18 @@ const shot = process.argv.includes('--shot');
     await page.click('.dhead [data-d="close"]');
   });
 
+  await check('outcome-check: badge en afvinken', async () => {
+    assert((await page.locator('[data-oid="o1"] .ochk').innerText()).includes('Getoetst'), 'o1 niet getoetst');
+    assert((await page.locator('[data-oid="o2"] .ochk').innerText()).includes('3/5'), 'o2 niet 3/5');
+    await page.click('button[data-act="edit"][data-id="o3"]');
+    await page.check('[data-ochk="invloed"]');
+    await page.check('[data-ochk="termijn"]');
+    assert((await page.locator('#ochkBadge').innerText()).includes('2/5'), 'badge in zijpaneel niet bijgewerkt');
+    assert((await page.locator('[data-ochkhint="eerstestap"]').innerText()).includes('nog geen mijlpaal'), 'hint eerste stap ontbreekt');
+    await page.click('.dhead [data-d="close"]');
+    assert((await page.locator('[data-oid="o3"] .ochk').innerText()).includes('2/5'), 'badge op bord niet bijgewerkt');
+  });
+
   await check('outcome bewerken (titel)', async () => {
     await page.click('button[data-act="edit"][data-id="o1"]');
     await page.fill('#o-title', 'Testtitel');
