@@ -16,7 +16,6 @@
     <div>
       <p class="eyebrow" id="eyebrow">PI-planning</p>
       <h1>LACE PI Outcome Board</h1>
-      <p class="sub">Samen plannen richting outcomes: mijlpalen in de tijd, voortgang per key result. Wijzigingen zijn direct voor het hele team zichtbaar.</p>
     </div>
     <div class="actions">
       <span class="live" id="live" data-state="loading"><span class="dot" aria-hidden="true"></span><span id="liveText">Verbinden…</span></span>
@@ -33,17 +32,15 @@
   </nav>
 
   <div id="viewBoard" class="view">
-  <section class="tiles" aria-label="Samenvatting">
-    <div class="tile"><span class="k">Voortgang outcomes</span><span class="v num" id="tPct">0%</span><div class="bar" role="progressbar" aria-label="Totale voortgang" aria-valuemin="0" aria-valuemax="100" id="tBar" aria-valuenow="0"><div class="fill" id="tFill" style="width:0%"></div></div></div>
-    <div class="tile"><span class="k">Mijlpalen gehaald</span><span class="v num" id="tMs">0 / 0</span><span class="s" id="tMsSub">nog niets gepland</span></div>
-    <div class="tile"><span class="k">Predictability</span><span class="v num" id="tPred">–</span><span class="s" id="tPredSub">Vul business value in bij de outcomes</span></div>
-    <div class="tile"><span class="k">Risico of gemist</span><span class="v num" id="tRisk">0</span><span class="s">mijlpalen die aandacht vragen</span></div>
-    <div class="tile"><span class="k">Waar staan we</span><span class="v word" id="tNow">–</span><span class="s" id="tNowSub"></span></div>
-  </section>
-
   <div id="ogsmBanner" class="ogsmbanner"></div>
   <div class="toolbar">
-    <p class="hint">Outcomes staan gegroepeerd per OGSM-doel. Klik op een outcome om die uit te klappen. Elke bijdrage krijgt een eigen baan. Lijnen tonen welke mijlpaal op welke wacht; ga met de muis over een mijlpaal om zijn lijnen te zien.</p>
+    <div class="kpis" role="group" aria-label="Samenvatting">
+      <span class="kpi"><span class="k">Voortgang</span><span class="v num" id="tPct">0%</span><span class="minibar" role="progressbar" aria-label="Totale voortgang" aria-valuemin="0" aria-valuemax="100" id="tBar" aria-valuenow="0"><span class="fill" id="tFill" style="width:0%"></span></span></span>
+      <span class="kpi"><span class="k">Mijlpalen gehaald</span><span class="v num" id="tMs">0 / 0</span><span class="sr-only" id="tMsSub">nog niets gepland</span></span>
+      <span class="kpi"><span class="k">Predictability</span><span class="v num" id="tPred">–</span><span class="sr-only" id="tPredSub">Vul business value in bij de outcomes</span></span>
+      <span class="kpi"><span class="k">Risico of gemist</span><span class="v num" id="tRisk">0</span></span>
+      <span class="kpi"><span class="k">Nu</span><span class="v word" id="tNow">–</span><span class="sr-only" id="tNowSub"></span></span>
+    </div>
     <div class="actions"><button class="btn" type="button" id="btnDeps" aria-pressed="true">Afhankelijkheden verbergen</button>
     <button class="btn" type="button" id="btnView" aria-pressed="false">Alles uitklappen</button></div>
   </div>
@@ -52,6 +49,7 @@
   </section>
 
   <footer class="legend" id="legend"></footer>
+  <p class="hint">Outcomes staan gegroepeerd per OGSM-doel. Klik op een outcome om die uit te klappen. Elke bijdrage krijgt een eigen baan. Ga met de muis over een mijlpaal om zijn afhankelijkheden te zien.</p>
   </div>
 
   <div id="viewPlanner" class="view" hidden><div id="planner"><div class="empty">Planner laden…</div></div></div>
