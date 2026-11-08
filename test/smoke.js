@@ -37,6 +37,38 @@ const shot = process.argv.includes('--shot');
     assert(await page.locator('.row.focus, .row.compact').count() >= 2, 'outcomes ontbreken');
   });
 
+  await check('OGSM: groepen, lijnen en waarschuwingen', async () => {
+    assert(await page.locator('.ogcell[data-og="g1"]').count() === 1, 'groep G1 ontbreekt');
+    assert(await page.locator('.ogcell[data-og="g1"]').locator('xpath=..').locator('[data-oid]').count() === 2, 'G1 heeft niet 2 outcomes');
+    assert(await page.locator('.ogcell[data-og="_none"]').count() === 1, 'groep Nog niet gekoppeld ontbreekt');
+    await page.waitForTimeout(100);
+    assert(await page.locator('#ogLines path.ogl').count() === 3, 'aantal OGSM-lijnen klopt niet');
+    assert((await page.locator('#ogsmBanner').innerText()).includes('Voorbeeld-ambitie'), 'ambitie niet zichtbaar');
+    assert(await page.locator('#ogsmBanner .ogwarn').count() === 0, 'G2 heeft extra koppeling, geen waarschuwing verwacht');
+    assert(await page.locator('.ogextra .ogtag').count() >= 1, 'extra doel-label ontbreekt');
+    assert((await page.locator('#board').innerText()).indexOf('ART- &') < 0, 'ART-rij staat er nog');
+  });
+
+  await check('OGSM: outcome koppelen en doel toevoegen', async () => {
+    await page.click('button[data-act="edit"][data-id="o3"]');
+    await page.selectOption('#o-ogsm', 'g2');
+    await page.waitForTimeout(100);
+    await page.click('.dhead [data-d="close"]');
+    await page.waitForTimeout(100);
+    assert(await page.locator('.ogcell[data-og="g2"]').count() === 1, 'groep G2 niet verschenen');
+    assert(await page.locator('.ogcell[data-og="_none"]').count() === 0, 'ongekoppelde groep had moeten verdwijnen');
+    await page.click('#ogsmBanner [data-ogact="manage"]');
+    await page.click('[data-d="addgoal"]');
+    await page.fill('#ogList .ogedit:last-child [data-gf="title"]', 'Nieuw doel');
+    await page.waitForTimeout(600);
+    await page.click('.dhead [data-d="close"]');
+    assert((await page.locator('#ogsmBanner').innerText()).includes('Nieuw doel heeft deze PI geen outcome'), 'waarschuwing leeg doel ontbreekt');
+    await page.click('button[data-act="edit"][data-id="o3"]');
+    await page.selectOption('#o-ogsm', '');
+    await page.waitForTimeout(100);
+    await page.click('.dhead [data-d="close"]');
+  });
+
   await check('outcome bewerken (titel)', async () => {
     await page.click('button[data-act="edit"][data-id="o1"]');
     await page.fill('#o-title', 'Testtitel');

@@ -15,15 +15,20 @@
 
   var db = {
     settings: [{ id: 'pi', pi_start: iso(start), iteration_weeks: 2, pi_name: 'Demo-PI', iteration_count: 5, ip_iteration: false }],
+    ogsm: [
+      { id: 'objective', kind: 'objective', title: 'Voorbeeld-ambitie: wendbaar en datagedreven bijdragen aan de energietransitie', sort_order: 0 },
+      { id: 'g1', kind: 'goal', code: 'G1', title: 'Voorspelbaar leveren', strategy: 'Sturen op flow en outcomes', measure: 'Predictability ≥ 80%', color: 1, sort_order: 1 },
+      { id: 'g2', kind: 'goal', code: 'G2', title: 'Wendbare organisatie', strategy: 'AI-native werken', measure: '3 teams werken AI-native', color: 2, sort_order: 2 }
+    ],
     outcomes: [
-      { id: 'o1', title: 'Flow-metrics zichtbaar per ART', sort_order: 1, commitment: 'committed', bv_planned: 8, bv_actual: null,
-        hypothesis: 'Wij geloven dat flow-metrics per ART leiden tot betere keuzes in PI Planning. We weten dat het werkt als RTE\'s de cijfers gebruiken in de ART-sync.',
-        krs: [{ id: 'k1', text: '6 ARTs met een flow-dashboard', kind: 'lagging', start: 0, target: 6, current: 2, unit: '' },
+      { id: 'o1', title: 'Flow-metrics zichtbaar per team', sort_order: 1, ogsm_ref: 'g1', ogsm_extra: ['g2'], commitment: 'committed', bv_planned: 8, bv_actual: null,
+        hypothesis: 'Wij geloven dat flow-metrics per team leiden tot betere keuzes in PI Planning. We weten dat het werkt als teams de cijfers gebruiken in hun sync.',
+        krs: [{ id: 'k1', text: '6 teams met een flow-dashboard', kind: 'lagging', start: 0, target: 6, current: 2, unit: '' },
               { id: 'k2', text: 'Teams die lead time meten', kind: 'leading', start: 20, target: 80, current: 35, unit: '%' }],
-        contribs: [{ id: 'c1', owner: 'Voorbeeld A', text: 'Dashboard in Jira' }, { id: 'c2', owner: 'Voorbeeld B', text: 'Coaching RTE\'s' }],
+        contribs: [{ id: 'c1', owner: 'Voorbeeld A', text: 'Dashboard in Jira' }, { id: 'c2', owner: 'Voorbeeld B', text: 'Coaching teams' }],
         checkins: [{ id: 'ci1', date: daysAgo(14), confidence: 4, note: 'Goede start', by: 'Voorbeeld A' }, { id: 'ci2', date: daysAgo(5), confidence: 3, note: 'Data uit Jira onvolledig', by: 'Voorbeeld A' }],
         updated_by: 'Demo', updated_at: daysAgo(1) },
-      { id: 'o2', title: 'PI Planning in één dag', sort_order: 2, commitment: 'stretch', bv_planned: 5, bv_actual: null, hypothesis: '',
+      { id: 'o2', title: 'PI Planning in één dag', sort_order: 2, ogsm_ref: 'g1', commitment: 'stretch', bv_planned: 5, bv_actual: null, hypothesis: '',
         krs: [{ id: 'k3', text: 'Duur PI Planning in dagen', kind: 'lagging', start: 2, target: 1, current: 2, unit: '' }],
         contribs: [{ id: 'c3', owner: 'Voorbeeld C', text: 'Draaiboek' }], checkins: [] },
       { id: 'o3', title: '[Lege outcome om mee te testen]', sort_order: 3, commitment: 'committed', krs: [], contribs: [], checkins: [] }
@@ -32,14 +37,14 @@
       { id: 'm1', row_ref: 'art', contrib_ref: '', iter: 0, title: 'PI Planning', type: 'fixed', status: 'done', created_at: daysAgo(30) },
       { id: 'm2', row_ref: 'art', contrib_ref: '', iter: 4, title: 'Inspect & Adapt', type: 'fixed', status: 'planned', depends_on: ['m4'], created_at: daysAgo(29) },
       { id: 'm3', row_ref: 'o1', contrib_ref: 'c1', iter: 0, title: 'Datamodel gevalideerd', type: 'learn', status: 'done', learning: 'Lead time klopt alleen als statussen in Jira gelijk zijn.', decision: 'adjust', created_at: daysAgo(28) },
-      { id: 'm4', row_ref: 'o1', contrib_ref: 'c1', iter: 2, title: 'Dashboard live voor 2 ARTs', type: 'release', status: 'planned', depends_on: ['m3'], created_at: daysAgo(27) },
-      { id: 'm5', row_ref: 'o1', contrib_ref: 'c2', iter: 1, title: 'RTE-sessie metrics', type: 'sync', status: 'risk', depends_on: ['m4'], created_at: daysAgo(26) },
+      { id: 'm4', row_ref: 'o1', contrib_ref: 'c1', iter: 2, title: 'Dashboard live voor 2 teams', type: 'release', status: 'planned', depends_on: ['m3'], created_at: daysAgo(27) },
+      { id: 'm5', row_ref: 'o1', contrib_ref: 'c2', iter: 1, title: 'Teamsessie metrics', type: 'sync', status: 'risk', depends_on: ['m4'], created_at: daysAgo(26) },
       { id: 'm6', row_ref: 'o2', contrib_ref: 'c3', iter: 1, title: 'Draaiboek v1', type: 'learn', status: 'planned', created_at: daysAgo(25) }
     ],
     tasks: [
       { id: 't1', title: 'Koppeling Jira-statussen testen', outcome_ref: 'o1', milestone_ref: 'm4', owner: 'Voorbeeld A', status: 'doing', iter: 1, checklist: [{ id: 'x1', text: 'Testset kiezen', done: true }, { id: 'x2', text: 'Afwijkingen noteren', done: false }], notes: '', sort_order: 1, created_at: daysAgo(10) },
       { id: 't2', title: 'Dashboard-template maken', outcome_ref: 'o1', milestone_ref: 'm4', owner: 'Voorbeeld A', status: 'todo', iter: 2, checklist: [], notes: '', sort_order: 2, created_at: daysAgo(9) },
-      { id: 't3', title: 'Agenda RTE-sessie afstemmen', outcome_ref: 'o1', milestone_ref: 'm5', owner: 'Voorbeeld B', status: 'waiting', iter: 1, checklist: [], notes: 'Wacht op beschikbaarheid RTE\'s', sort_order: 3, created_at: daysAgo(8) },
+      { id: 't3', title: 'Agenda teamsessie afstemmen', outcome_ref: 'o1', milestone_ref: 'm5', owner: 'Voorbeeld B', status: 'waiting', iter: 1, checklist: [], notes: 'Wacht op beschikbaarheid teams', sort_order: 3, created_at: daysAgo(8) },
       { id: 't4', title: 'Datamodel documenteren', outcome_ref: 'o1', milestone_ref: 'm3', owner: 'Voorbeeld A', status: 'done', iter: 0, checklist: [], notes: '', sort_order: 4, created_at: daysAgo(20) },
       { id: 't5', title: 'Draaiboek eerste versie', outcome_ref: 'o2', milestone_ref: 'm6', owner: 'Voorbeeld C', status: 'todo', iter: 0, checklist: [], notes: '', sort_order: 5, created_at: daysAgo(18) },
       { id: 't6', title: 'Verlof en bezetting PI bijwerken', outcome_ref: '', milestone_ref: '', owner: 'Voorbeeld B', status: 'doing', iter: 1, checklist: [], notes: '', sort_order: 6, created_at: daysAgo(4) }

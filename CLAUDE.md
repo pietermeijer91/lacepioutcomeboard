@@ -1,6 +1,6 @@
 # LACE PI Outcome Board — instructies voor Claude Code
 
-Gedeeld planningsbord van het LACE-team: PI-outcomes met key results, bijdragen (banen) en mijlpalen per iteratie, plus check-ins, business value en leerpunten. Gebaseerd op het SAFe PI Outcome Planning Board.
+Gedeeld planningsbord van het LACE-team (het bord gaat over het LACE zelf, niet over een ART): PI-outcomes gekoppeld aan OGSM-doelen, met key results, bijdragen (banen) en mijlpalen per iteratie, plus check-ins, business value en leerpunten. Gebaseerd op het SAFe PI Outcome Planning Board.
 
 Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `main` staat gaat via GitHub Pages direct live.
 
@@ -9,8 +9,9 @@ Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `mai
 - **Supabase** (Postgres + Realtime) via de UMD-build van `@supabase/supabase-js@2.45.4` van jsDelivr. **Geen login**: de policies staan `anon` lezen en schrijven toe. De anon key in `config.js` is dus openbaar; zet nooit een `service_role`-key in de code.
 - **Datamodel** (zie `supabase/schema.sql`):
   - `outcomes`: titel, `sort_order`, `hypothesis`, `commitment` (`committed`/`stretch`), `bv_planned`, `bv_actual`, en JSON-velden `krs` (`{id,text,kind,start,target,current,unit}`), `contribs` (`{id,owner,text}`), `checkins` (`{id,date,confidence,note,by}`).
-  - `milestones`: `row_ref` (`art` of een outcome-id), `contrib_ref` (bijdrage-id, `''` = hele outcome), `iter` (kolomindex), `type` (`fixed`/`learn`/`sync`/`release`), `status` (`planned`/`done`/`risk`/`missed`), `learning`, `decision`, `depends_on` (lijst met mijlpaal-id's; getekend als lijnen door `drawDeps()` in een SVG-laag over het bord, rood gestippeld als de voorganger later staat of gemist is).
+  - `milestones`: `row_ref` (`art` = de rij LACE-ritme, of een outcome-id), `contrib_ref` (bijdrage-id, `''` = hele outcome), `iter` (kolomindex), `type` (`fixed`/`learn`/`sync`/`release`), `status` (`planned`/`done`/`risk`/`missed`), `learning`, `decision`, `depends_on` (lijst met mijlpaal-id's; getekend als lijnen door `drawDeps()` in een SVG-laag over het bord, rood gestippeld als de voorganger later staat of gemist is).
   - `tasks` (planner): `title`, `outcome_ref` (`''` = Run & overig), `milestone_ref`, `owner`, `status` (`todo`/`doing`/`waiting`/`done`), `iter` (null = geen), `checklist` (`{id,text,done}`), `notes`, `sort_order`. Wordt apart geladen (`loadTasks`) met een eigen realtime-kanaal; ontbreekt de tabel, dan toont de Planner een melding en werkt de rest gewoon.
+  - `ogsm`: OGSM van het LACE-team. Eén rij `id = 'objective'` (`kind = 'objective'`, de ambitie) en rijen met `kind = 'goal'` (`code`, `title`, `strategy`, `measure`, `color` 1-6, `sort_order`). Outcomes verwijzen met `ogsm_ref` (hoofddoel) en `ogsm_extra` (extra doelen). Het bord groepeert outcomes per doel in een linkerkolom (`ogsmGroups`), met lijnen in `drawDeps()`. Wordt apart geladen (`loadOgsm`); ontbreekt de tabel, dan werkt de rest gewoon.
   - `settings`: één rij `id = 'pi'` met startdatum, iteratielengte, aantal iteraties, IP-iteratie, naam.
 - In `app.js` heten velden camelCase; `KEYMAP` vertaalt naar de snake_case-kolommen (`toRow`/`fromRow`). Nieuwe kolom met een andere naam? Voeg hem toe aan `KEYMAP`.
 - Schrijven gaat via `queue(col, id, patch, delay)` (optimistisch lokaal bijwerken, daarna debounced `update`). Realtime-events en `loadAll()` leggen openstaande wijzigingen eroverheen (`overlay`), zodat typen niet wordt overschreven.
