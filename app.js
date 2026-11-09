@@ -314,7 +314,7 @@
         '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + (k.kind ? ' <span class="tag k-' + esc(k.kind) + '">' + KIND[k.kind] + '</span>' : '') + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
         (krs.length && krs.every(function (k) { return k.kind === 'lagging'; }) ? '<p class="warn">Alleen achterlopende indicatoren: waar stuur je tijdens de PI op?</p>' : '') +
         confBlock(o, T) + bvLine(o) + learnLog(oms) +
-        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') +
+        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button><button type="button" class="mini" data-act="addmsout" data-id="' + esc(o.id) + '">+ Mijlpaal</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') +
         (o.updatedAt ? '<span class="meta">' + esc(whoLabel(o)) + '</span>' : '') + '</div>';
 
       lanes.forEach(function (ln, idx) {
@@ -464,6 +464,15 @@
     openDrawer({ kind: 'm', id: id }); renderAll();
   }
 
+  // Nieuwe mijlpaal via de knop: bij de opengeklapte outcome (of LACE-ritme) in de huidige iteratie.
+  function addMsQuick(outcomeId) {
+    var outs = sortedOutcomes(), row = outcomeId || focusId(outs) || 'art';
+    var T = timeInfo(), iter = T.nowIdx >= 0 ? Math.min(T.nowIdx, lastCol()) : 0;
+    if (row !== 'art') setFocus(row);
+    addMs(row, iter, '');
+    toast('Nieuwe mijlpaal: kies in het paneel de iteratie, de outcome en de baan.');
+  }
+
   /* ---------- bord-events ---------- */
   $('board').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-act]'); if (!b) return;
@@ -472,6 +481,7 @@
     if (a === 'ms') { var mm = S.milestones[id]; if (mm && mm.row !== 'art' && !S.expandAll) setFocus(mm.row); openDrawer({ kind: 'm', id: id }); }
     else if (a === 'edit') openDrawer({ kind: 'o', id: id });
     else if (a === 'addoutcome' && S.ready && !S.readOnly) addOutcome();
+    else if (a === 'addmsout' && S.ready && !S.readOnly) addMsQuick(id);
     else if (a === 'checkin') { openDrawer({ kind: 'o', id: id }); var cf = $('ci-conf'); if (cf) { cf.scrollIntoView({ block: 'center' }); cf.focus(); } }
     else if (a === 'focus') { setFocus(id); renderViews(); }
     else if (a === 'unfocus') { setFocus('__none__'); renderViews(); }
@@ -486,6 +496,7 @@
   $('btnDeps').addEventListener('click', function () { S.showDeps = !S.showDeps; saveView(); renderViews(); });
   $('board').addEventListener('mouseover', function (e) { var c = e.target.closest('[data-act="ms"]'); var id = c ? c.dataset.id : null; if (id !== S.hoverMs) { S.hoverMs = id; drawDeps(); } });
   $('board').addEventListener('mouseleave', function () { if (S.hoverMs) { S.hoverMs = null; drawDeps(); } });
+  $('btnAddMs').addEventListener('click', function () { if (S.ready && !S.readOnly) addMsQuick(); });
   $('btnSettings').addEventListener('click', function () { openDrawer({ kind: 's' }); });
   try { $('myName').value = localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
   $('myName').addEventListener('input', function () { try { localStorage.setItem(NAME_KEY, $('myName').value.trim()); } catch (e) {} });
@@ -1258,7 +1269,7 @@
       var m = {}; res[1].data.forEach(function (r) { m[r.id] = overlay('milestones', r.id, fromRow(r)); });
       S.outcomes = o; S.milestones = m;
       if (res[2].data[0]) applySettings(res[2].data[0]);
-      S.ready = true; $('btnAddOutcome').disabled = false;
+      S.ready = true; $('btnAddOutcome').disabled = false; $('btnAddMs').disabled = false;
       renderAll();
       return Promise.all([loadTasks(), loadOgsm()]);
     });
