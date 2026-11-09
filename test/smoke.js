@@ -81,6 +81,16 @@ const shot = process.argv.includes('--shot');
     assert((await page.locator('[data-oid="o3"] .ochk').innerText()).includes('2/5'), 'badge op bord niet bijgewerkt');
   });
 
+  await check('knop + Mijlpaal opent nieuwe mijlpaal', async () => {
+    const before = await page.locator('#board [data-act="ms"]').count();
+    await page.click('#btnAddMs');
+    assert((await page.locator('#m-title').inputValue()) === 'Nieuwe mijlpaal', 'zijpaneel niet geopend');
+    await page.selectOption('#m-iter', '3');
+    await page.waitForTimeout(100);
+    await page.click('.dhead [data-d="close"]');
+    assert(await page.locator('#board [data-act="ms"]').count() === before + 1, 'mijlpaal niet op het bord');
+  });
+
   await check('outcome bewerken (titel)', async () => {
     await page.click('button[data-act="edit"][data-id="o1"]');
     await page.fill('#o-title', 'Testtitel');

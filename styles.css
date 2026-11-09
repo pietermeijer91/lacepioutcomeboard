@@ -213,7 +213,7 @@ footer.legend span{display:inline-flex;align-items:center;gap:6px}
 
 /* + mijlpaal: subtiel, zichtbaar bij hover of focus */
 .cell .add{min-height:30px;font-size:14px;line-height:1;margin-top:auto}
-@media (hover:hover){ .cell .add{opacity:0;transition:opacity .12s} .cell:hover .add,.cell .add:focus-visible{opacity:1} }
+@media (hover:hover){ .cell .add{opacity:.35;transition:opacity .12s} .cell:hover .add,.cell .add:focus-visible{opacity:1} }
 
 /* vandaag-lijn */
 .cell.today::before{content:"";position:absolute;top:0;bottom:-1px;left:var(--tpos);width:2px;background:var(--today);opacity:.85;pointer-events:none;z-index:1}
