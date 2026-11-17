@@ -40,9 +40,11 @@ const shot = process.argv.includes('--shot');
   await check('OGSM: groepen, lijnen en waarschuwingen', async () => {
     assert(await page.locator('.ogcell[data-og="g1"]').count() === 1, 'groep G1 ontbreekt');
     assert(await page.locator('.ogcell[data-og="g1"]').locator('xpath=..').locator('[data-oid]').count() === 2, 'G1 heeft niet 2 outcomes');
+    assert(await page.locator('.ciocell[data-cio="c1"]').count() === 1 && await page.locator('.ciocell[data-cio="c2"]').count() === 1, 'CIO-kolom ontbreekt');
+    assert(await page.locator('[data-oid="o1"] > .bar').count() === 0, 'voortgangsbalk outcome staat er nog');
     assert(await page.locator('.ogcell[data-og="_none"]').count() === 1, 'groep Nog niet gekoppeld ontbreekt');
     await page.waitForTimeout(100);
-    assert(await page.locator('#ogLines path.ogl').count() === 3, 'aantal OGSM-lijnen klopt niet');
+    assert(await page.locator('#ogLines path.ogl').count() === 6, 'aantal OGSM/CIO-lijnen klopt niet');
     assert((await page.locator('#ogsmBanner').innerText()).includes('Voorbeeld-ambitie'), 'ambitie niet zichtbaar');
     assert(await page.locator('#ogsmBanner .ogwarn').count() === 0, 'G2 heeft extra koppeling, geen waarschuwing verwacht');
     assert(await page.locator('.ogextra .ogtag').count() >= 1, 'extra doel-label ontbreekt');
@@ -89,6 +91,33 @@ const shot = process.argv.includes('--shot');
     await page.waitForTimeout(100);
     await page.click('.dhead [data-d="close"]');
     assert(await page.locator('#board [data-act="ms"]').count() === before + 1, 'mijlpaal niet op het bord');
+  });
+
+  await check('mijlpaal snel toevoegen in een iteratie', async () => {
+    await page.click('button[data-act="focus"][data-id="o1"]').catch(() => {});
+    const before = await page.locator('#board [data-act="ms"]').count();
+    await page.click('.cell[data-drop-row="o1"][data-drop-contrib="c1"][data-drop-iter="4"] [data-act="addms"]');
+    await page.fill('#qaddInput', 'Snelle mijlpaal');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    assert(await page.locator('#board [data-act="ms"]').count() === before + 1, 'mijlpaal niet toegevoegd');
+    assert(await page.locator('.cell[data-drop-row="o1"][data-drop-contrib="c1"][data-drop-iter="4"] .callout', { hasText: 'Snelle mijlpaal' }).count() === 1, 'mijlpaal staat niet in de juiste cel');
+    await page.click('.cell[data-drop-row="o1"][data-drop-contrib="c1"][data-drop-iter="2"] [data-act="addms"]');
+    await page.keyboard.press('Escape');
+    assert(await page.locator('#qaddInput').count() === 0, 'annuleren werkt niet');
+  });
+
+  await check('CIO Office-doel koppelen', async () => {
+    await page.click('button[data-act="edit"][data-id="o3"]');
+    await page.selectOption('#o-cio', 'c2');
+    await page.waitForTimeout(100);
+    await page.click('.dhead [data-d="close"]');
+    await page.waitForTimeout(100);
+    assert(await page.locator('.ogcell[data-og="_none"]').locator('xpath=..').locator('.ciocell[data-cio="c2"]').count() === 1, 'o3 niet onder C2');
+    await page.click('button[data-act="edit"][data-id="o3"]');
+    await page.selectOption('#o-cio', '');
+    await page.waitForTimeout(100);
+    await page.click('.dhead [data-d="close"]');
   });
 
   await check('outcome bewerken (titel)', async () => {
