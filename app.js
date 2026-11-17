@@ -40,7 +40,7 @@
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on', ogsmRef: 'ogsm_ref', ogsmExtra: 'ogsm_extra' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on', ogsmRef: 'ogsm_ref', ogsmExtra: 'ogsm_extra', cioRef: 'cio_ref' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
@@ -178,7 +178,11 @@
   }
   function addBtn(row, i, contrib) {
     if (S.readOnly) return '';
-    return '<button type="button" class="add" data-act="addms" data-row="' + esc(row) + '" data-iter="' + i + '" data-contrib="' + esc(contrib || '') + '" aria-label="Mijlpaal toevoegen in ' + esc(iterNames()[i]) + '">+</button>';
+    var q = S.quick;
+    if (q && q.row === row && q.iter === i && (q.contrib || '') === (contrib || '')) {
+      return '<div class="qadd"><input type="text" id="qaddInput" aria-label="Titel nieuwe mijlpaal in ' + esc(iterNames()[i]) + '" placeholder="Titel mijlpaal" autocomplete="off"><span class="qhint">Enter = toevoegen · Esc = annuleren</span></div>';
+    }
+    return '<button type="button" class="add" data-act="addms" data-row="' + esc(row) + '" data-iter="' + i + '" data-contrib="' + esc(contrib || '') + '" aria-label="Mijlpaal toevoegen in ' + esc(iterNames()[i]) + '">+ mijlpaal</button>';
   }
   function cell(i, r, T, inner, extra, drop) {
     var cls = 'cell' + (i === T.nowIdx ? ' now' : '') + (i === T.todayIdx ? ' today' : '') + (extra ? ' ' + extra : '');
@@ -238,7 +242,7 @@
     if (n === 0) return '<span class="ochk none" title="Outcome-check nog niet gedaan">Nog niet getoetst</span>';
     return '<span class="ochk part" title="Outcome-check: ' + n + ' van ' + OCHECK.length + ' afgevinkt">Check ' + n + '/' + OCHECK.length + '</span>';
   }
-  function goalList() { return Object.keys(S.ogsm || {}).map(function (id) { return Object.assign({ id: id }, S.ogsm[id]); }).filter(function (g) { return g.kind === 'goal'; }).sort(function (a, b) { return num(a.order) - num(b.order) || String(a.code || '').localeCompare(String(b.code || '')); }); }
+  function goalList(kind) { kind = kind || 'goal'; return Object.keys(S.ogsm || {}).map(function (id) { return Object.assign({ id: id }, S.ogsm[id]); }).filter(function (g) { return g.kind === kind; }).sort(function (a, b) { return num(a.order) - num(b.order) || String(a.code || '').localeCompare(String(b.code || '')); }); }
   function objective() { var o = S.ogsm && S.ogsm.objective; return o ? (o.title || '') : ''; }
   function ogColor(g) { var c = num(g.color); return c >= 1 && c <= 6 ? c : 1; }
   function ogsmGroups(outs) {
@@ -246,6 +250,12 @@
     var none = { goal: null, outs: [] };
     outs.forEach(function (o) { (byId[o.ogsmRef] || none).outs.push(o); });
     return goals.map(function (g) { return byId[g.id]; }).filter(function (g) { return g.outs.length; }).concat(none.outs.length ? [none] : []);
+  }
+  function cioGroups(outs) {
+    var cios = goalList('cio'), byId = {}; cios.forEach(function (c) { byId[c.id] = { cio: c, outs: [] }; });
+    var none = { cio: null, outs: [] };
+    outs.forEach(function (o) { (byId[o.cioRef] || none).outs.push(o); });
+    return cios.map(function (c) { return byId[c.id]; }).filter(function (c) { return c.outs.length; }).concat(none.outs.length ? [none] : []);
   }
   function extraGoals(o) {
     var ex = (Array.isArray(o.ogsmExtra) ? o.ogsmExtra : []).filter(function (id) { return S.ogsm[id] && id !== o.ogsmRef; });
@@ -258,23 +268,27 @@
     var obj = objective(), goals = goalList(), outs = sortedOutcomes();
     var empty = goals.filter(function (g) { return !outs.some(function (o) { return o.ogsmRef === g.id || (Array.isArray(o.ogsmExtra) && o.ogsmExtra.indexOf(g.id) >= 0); }); });
     var unl = outs.filter(function (o) { return !o.ogsmRef || !S.ogsm[o.ogsmRef]; }).length;
+    var cios = goalList('cio'), cioEmpty = cios.filter(function (c) { return !outs.some(function (o) { return o.cioRef === c.id; }); });
+    var cioUnl = cios.length ? outs.filter(function (o) { return !o.cioRef || !S.ogsm[o.cioRef]; }).length : 0;
+    empty = empty.concat(cioEmpty);
     var h = '<div class="ogobj"><span class="ogobj-l">OGSM-ambitie</span>' + (obj ? '<b>' + esc(obj) + '</b>' : '<b class="muted">Nog niet ingevuld</b>') +
       (S.readOnly ? '' : '<button type="button" class="mini edit" data-ogact="manage">' + (goals.length || obj ? '✎ OGSM beheren' : '+ OGSM invullen') + '</button>') + '</div>';
-    if (empty.length || unl) h += '<div class="ogchips">' + empty.map(function (g) { return '<span class="ogwarn">' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + ' heeft deze PI geen outcome</span>'; }).join('') +
-      (unl ? '<span class="ogchip">' + unl + (unl === 1 ? ' outcome' : ' outcomes') + ' nog niet gekoppeld aan een OGSM-doel</span>' : '') + '</div>';
+    if (empty.length || unl || cioUnl) h += '<div class="ogchips">' + empty.map(function (g) { return '<span class="ogwarn">' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + ' heeft deze PI geen outcome</span>'; }).join('') +
+      (unl ? '<span class="ogchip">' + unl + (unl === 1 ? ' outcome' : ' outcomes') + ' nog niet gekoppeld aan een OGSM-doel</span>' : '') +
+      (cioUnl ? '<span class="ogchip">' + cioUnl + (cioUnl === 1 ? ' outcome' : ' outcomes') + ' nog niet gekoppeld aan een CIO Office-doel</span>' : '') + '</div>';
     el.innerHTML = h;
   }
 
   function renderBoard() {
     if (!S.ready) { $('board').innerHTML = '<div class="empty">Bord laden…</div>'; return; }
     var T = timeInfo(), ms = msList(), outs = sortedOutcomes(), fid = focusId(outs);
-    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="row head"><div>PI-outcome</div><div>Bijdragen</div>' + T.iters.map(function (it, i) {
+    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="cgroup head"><div class="ogh">CIO Office-doel</div><div class="ogrows"><div class="row head"><div>PI-outcome</div><div>Bijdragen</div>' + T.iters.map(function (it, i) {
       return '<div class="it' + (i === T.nowIdx ? ' now' : '') + '">' + esc(it.name) + (i === T.nowIdx ? '<span class="nowpill">Nu</span>' : '') + '<span class="dates">' + esc(it.dates) + '</span></div>';
-    }).join('') + '</div></div></div>';
+    }).join('') + '</div></div></div></div></div>';
 
     var art = ms.filter(function (m) { return m.row === 'art'; });
-    h += '<div class="ogroup ritme"><div class="ogcell ogempty"></div><div class="ogrows"><div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>LACE-ritme</h3><span class="meta">Vaste teammomenten, zoals PI Planning en Inspect &amp; Adapt</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
-      T.iters.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div></div></div>';
+    h += '<div class="ogroup ritme"><div class="ogcell ogempty"></div><div class="ogrows"><div class="cgroup"><div class="ogcell ogempty"></div><div class="ogrows"><div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>LACE-ritme</h3><span class="meta">Vaste teammomenten, zoals PI Planning en Inspect &amp; Adapt</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
+      T.iters.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div></div></div></div></div>';
 
     if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je bijdragen, key results en mijlpalen per iteratie toevoegen.</div>';
 
@@ -285,7 +299,7 @@
       var krs = Array.isArray(o.krs) ? o.krs : [], cs = Array.isArray(o.contribs) ? o.contribs : [];
       var oms = ms.filter(function (m) { return m.row === o.id; });
       var sel = S.sel && S.sel.kind === 'o' && S.sel.id === o.id;
-      var bar = '<div class="bar" role="progressbar" aria-label="Voortgang" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + st.pct + '"><div class="fill f-' + st.health + '" style="width:' + st.pct + '%"></div><div class="exp" style="left:' + T.expected + '%"></div></div>';
+      var bar = '';
 
       if (!expanded) {
         var owners = cs.map(function (c) { return c.owner; }).filter(Boolean);
@@ -339,7 +353,14 @@
           '<span class="ogstat">' + g.outs.length + (g.outs.length === 1 ? ' outcome' : ' outcomes') + ' · ' + avg + '%</span>' +
           '<div class="ogbar" role="progressbar" aria-label="Voortgang doel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + avg + '"><span style="width:' + avg + '%"></span></div></div>'
         : '<div class="ogcell ogc-none" data-og="_none"><b>Nog niet gekoppeld</b><span class="ogsub">Aan welk OGSM-doel draagt dit bij? Kies het bij Bewerken.</span></div>';
-      h += '<div class="ogroup">' + left + '<div class="ogrows">' + g.outs.map(outcomeRow).join('') + '</div></div>';
+      var subs = cioGroups(g.outs).map(function (c) {
+        var cl = c.cio
+          ? '<div class="ogcell ciocell ogc-' + ogColor(c.cio) + '" data-cio="' + esc(c.cio.id) + '"><span class="ogcode">' + esc(c.cio.code || 'CIO') + '</span><b>' + esc(c.cio.title || '(zonder titel)') + '</b>' +
+            (c.cio.measure ? '<span class="ogsub">' + esc(c.cio.measure) + '</span>' : '') + '<span class="ogstat">' + c.outs.length + (c.outs.length === 1 ? ' outcome' : ' outcomes') + '</span></div>'
+          : '<div class="ogcell ciocell ogc-none" data-cio="_none"><b>Geen CIO Office-doel</b><span class="ogsub">Kies het bij Bewerken.</span></div>';
+        return '<div class="cgroup">' + cl + '<div class="ogrows">' + c.outs.map(outcomeRow).join('') + '</div></div>';
+      }).join('');
+      h += '<div class="ogroup">' + left + '<div class="ogrows">' + subs + '</div></div>';
     });
     if (!S.readOnly) h += '<div class="addrow"><button type="button" class="btn ghost" data-act="addoutcome">+ PI-outcome toevoegen</button></div>';
     $('board').style.setProperty('--cols', T.iters.length);
@@ -348,6 +369,8 @@
       '<marker id="dep-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head"></path></marker>' +
       '<marker id="dep-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head bad"></path></marker></defs><g id="ogLines"></g><g id="depLines"></g></svg>';
     drawDeps();
+    var qi = $('qaddInput');
+    if (qi && S.quick) { qi.value = S.quick.text || ''; S.quickFocusing = true; qi.focus(); try { qi.setSelectionRange(qi.value.length, qi.value.length); } catch (e) {} S.quickFocusing = false; }
     var db = $('btnDeps'); if (db) { db.textContent = S.showDeps ? 'Afhankelijkheden verbergen' : 'Afhankelijkheden tonen'; db.setAttribute('aria-pressed', String(!!S.showDeps)); }
     var vt = $('btnView'); if (vt) { vt.textContent = S.expandAll ? 'Focus op één outcome' : 'Alles uitklappen'; vt.setAttribute('aria-pressed', String(!!S.expandAll)); }
   }
@@ -366,11 +389,12 @@
       var board = $('board'), g = $('depLines'), svg = board && board.querySelector('svg.deps'); if (!g || !svg) return;
       svg.setAttribute('width', board.scrollWidth); svg.setAttribute('height', board.scrollHeight);
       var br0 = board.getBoundingClientRect(), og = '';
-      board.querySelectorAll('[data-og]').forEach(function (blk) {
-        var gid = blk.dataset.og, rows = blk.parentNode.querySelectorAll('[data-oid]'), r0 = blk.getBoundingClientRect();
+      board.querySelectorAll('[data-og],[data-cio]').forEach(function (blk) {
+        var gid = blk.dataset.og || blk.dataset.cio, isOg = !!blk.dataset.og, r0 = blk.getBoundingClientRect();
+        var rows = isOg ? blk.parentNode.querySelectorAll(':scope > .ogrows > .cgroup > [data-cio]') : blk.parentNode.querySelectorAll(':scope > .ogrows [data-oid]');
         var sx = r0.right - br0.left - 10, cls = gid === '_none' ? 'ogl none' : 'ogl ogc-' + (S.ogsm[gid] ? ogColor(S.ogsm[gid]) : 1);
         rows.forEach(function (oc) {
-          var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + 24;
+          var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + (isOg ? 28 : 24);
           og += '<path class="' + cls + '" d="M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + '"></path>' +
             '<circle class="' + cls + ' dot" cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="3"></circle>';
         });
@@ -411,6 +435,7 @@
     if (res && res.error) {
       var e = res.error;
       if (/checks/.test(e.message || '')) { toast('De outcome-check is nog niet geactiveerd. Voer supabase/migrations/008_outcome_check.sql uit in Supabase.'); return; }
+      if (/cio_ref|ogsm_kind_check/.test(e.message || '')) { toast('De CIO Office-kolom is nog niet geactiveerd. Voer supabase/migrations/009_cio_office.sql uit in Supabase.'); return; }
       if (/ogsm/.test(e.message || '')) { toast('OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.'); return; }
       if (/depends_on/.test(e.message || '')) { toast('Afhankelijkheden zijn nog niet geactiveerd. Voer supabase/migrations/006_afhankelijkheden.sql uit in Supabase.'); return; }
       if (/tasks|outcome_ref|milestone_ref/.test(e.message || '')) { toast('De planner is nog niet geactiveerd. Voer supabase/migrations/005_planner_taken.sql uit in Supabase.'); return; }
@@ -473,6 +498,27 @@
     toast('Nieuwe mijlpaal: kies in het paneel de iteratie, de outcome en de baan.');
   }
 
+  /* ---------- mijlpaal snel toevoegen in een iteratiecel ---------- */
+  function commitQuick() {
+    var q = S.quick; if (!q) return;
+    var title = String(q.text || '').trim();
+    S.quick = null;
+    if (!title) { renderViews(); return; }
+    insert('milestones', rid('m'), Object.assign({ row: q.row, iter: q.iter, contrib: q.contrib || '', title: title, type: q.row === 'art' ? 'fixed' : 'learn', status: 'planned', createdAt: new Date().toISOString() }, meta()));
+    renderAll(); toast('Mijlpaal toegevoegd. Klik erop om soort, status of baan aan te passen.');
+  }
+  $('board').addEventListener('input', function (e) { if (e.target.id === 'qaddInput' && S.quick) S.quick.text = e.target.value; });
+  $('board').addEventListener('keydown', function (e) {
+    if (e.target.id !== 'qaddInput') return;
+    if (e.key === 'Enter') { e.preventDefault(); commitQuick(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); S.quick = null; renderViews(); }
+  });
+  $('board').addEventListener('focusout', function (e) {
+    if (e.target.id !== 'qaddInput' || S.quickFocusing || !S.quick) return;
+    var q0 = S.quick;
+    setTimeout(function () { if (S.quick === q0 && document.activeElement && document.activeElement.id !== 'qaddInput') commitQuick(); }, 120);
+  });
+
   /* ---------- bord-events ---------- */
   $('board').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-act]'); if (!b) return;
@@ -485,7 +531,7 @@
     else if (a === 'checkin') { openDrawer({ kind: 'o', id: id }); var cf = $('ci-conf'); if (cf) { cf.scrollIntoView({ block: 'center' }); cf.focus(); } }
     else if (a === 'focus') { setFocus(id); renderViews(); }
     else if (a === 'unfocus') { setFocus('__none__'); renderViews(); }
-    else if (a === 'addms' && S.ready && !S.readOnly) addMs(b.dataset.row, num(b.dataset.iter), b.dataset.contrib);
+    else if (a === 'addms' && S.ready && !S.readOnly) { S.quick = { row: b.dataset.row, iter: num(b.dataset.iter), contrib: b.dataset.contrib || '', text: '' }; renderViews(); }
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
   $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderViews(); });
@@ -603,9 +649,10 @@
     if (sel2 && sel2 !== document.activeElement) sel2.innerHTML = depOptions(m);
   }
   var OG_COLORS = { 1: 'Groen', 2: 'Paars', 3: 'Koraal', 4: 'Blauw', 5: 'Roze', 6: 'Oker' };
-  function renderOgList(force) {
-    var el = $('ogList'); if (!el) return;
-    var goals = goalList(), ro = S.readOnly ? ' disabled' : '';
+  function renderOgList(force) { renderGoalEditor('goal', 'ogList', force); renderGoalEditor('cio', 'cioList', force); }
+  function renderGoalEditor(kind, listId, force) {
+    var el = $(listId); if (!el) return;
+    var goals = goalList(kind), ro = S.readOnly ? ' disabled' : '', isCio = kind === 'cio';
     if (!force && el.dataset.sig === sig(goals)) {
       el.querySelectorAll('[data-g]').forEach(function (inp) { if (inp === document.activeElement) return; var g = S.ogsm[inp.dataset.g]; if (!g) return; var v = g[inp.dataset.gf]; v = v == null ? '' : v; if (String(inp.value) !== String(v)) inp.value = v; });
       return;
@@ -615,12 +662,12 @@
     el.innerHTML = goals.map(function (g) {
       var id = esc(g.id);
       return '<div class="ogedit ogc-' + ogColor(g) + '"><div class="ogedit-top">' +
-        '<input type="text" class="code" aria-label="Code" placeholder="G1" data-g="' + id + '" data-gf="code" value="' + esc(g.code || '') + '"' + ro + '>' +
-        '<input type="text" aria-label="Doel" placeholder="Doel uit de OGSM" data-g="' + id + '" data-gf="title" value="' + esc(g.title || '') + '"' + ro + '>' +
+        '<input type="text" class="code" aria-label="Code" placeholder="' + (isCio ? 'C1' : 'G1') + '" data-g="' + id + '" data-gf="code" value="' + esc(g.code || '') + '"' + ro + '>' +
+        '<input type="text" aria-label="Doel" placeholder="' + (isCio ? 'Doel van het CIO Office' : 'Doel uit de OGSM') + '" data-g="' + id + '" data-gf="title" value="' + esc(g.title || '') + '"' + ro + '>' +
         '<select aria-label="Kleur" data-g="' + id + '" data-gf="color"' + ro + '>' + Object.keys(OG_COLORS).map(function (k) { return opt(k, OG_COLORS[k], ogColor(g)); }).join('') + '</select>' +
         (S.readOnly ? '' : '<span data-delzone="' + id + '"><button type="button" class="x" aria-label="Doel verwijderen" data-d="delgoal" data-id="' + id + '">' + X_ICON + '</button></span>') + '</div>' +
-        '<input type="text" aria-label="Strategie" placeholder="Strategie (S)" data-g="' + id + '" data-gf="strategy" value="' + esc(g.strategy || '') + '"' + ro + '>' +
-        '<input type="text" aria-label="Meetwaarde" placeholder="Meetwaarde (M), bijv. KPI en doelwaarde" data-g="' + id + '" data-gf="measure" value="' + esc(g.measure || '') + '"' + ro + '></div>';
+        (isCio ? '' : '<input type="text" aria-label="Strategie" placeholder="Strategie (S)" data-g="' + id + '" data-gf="strategy" value="' + esc(g.strategy || '') + '"' + ro + '>') +
+        '<input type="text" aria-label="' + (isCio ? 'Toelichting' : 'Meetwaarde') + '" placeholder="' + (isCio ? 'Toelichting of meetwaarde (optioneel)' : 'Meetwaarde (M), bijv. KPI en doelwaarde') + '" data-g="' + id + '" data-gf="measure" value="' + esc(g.measure || '') + '"' + ro + '></div>';
     }).join('') || '<p class="note">Nog geen doelen.</p>';
     if (keep) { var n = el.querySelector('[data-g="' + keep[0] + '"][data-gf="' + keep[1] + '"]'); if (n) n.focus(); }
   }
@@ -692,7 +739,9 @@
       body = '<label class="field">Outcome<input id="o-title" class="big" data-f="title" type="text" value="' + esc(o.title) + '"' + ro + '></label>' +
         (S.ogsmMissing ? '' : '<div class="sec"><label class="field">OGSM-doel<select id="o-ogsm" data-f="ogsmRef"' + ro + '>' + opt('', 'Nog niet gekoppeld', o.ogsmRef || '') + goals.map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.ogsmRef || ''); }).join('') + '</select></label>' +
           (goals.length > 1 ? '<div class="ogx"><span class="h">Draagt ook bij aan</span>' + goals.map(function (g) { return '<label class="ogxl"><input type="checkbox" data-ogx="' + esc(g.id) + '"' + ((o.ogsmExtra || []).indexOf(g.id) >= 0 ? ' checked' : '') + (g.id === o.ogsmRef ? ' disabled' : '') + ro + '>' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + '</label>'; }).join('') + '</div>' : '') +
-          (goals.length ? '' : '<p class="note">Nog geen OGSM-doelen. Vul ze in via PI-instellingen › OGSM.</p>') + '</div>') +
+          (goals.length ? '' : '<p class="note">Nog geen OGSM-doelen. Vul ze in via PI-instellingen › OGSM.</p>') +
+          '<label class="field">CIO Office-doel<select id="o-cio" data-f="cioRef"' + ro + '>' + opt('', 'Nog niet gekoppeld', o.cioRef || '') + goalList('cio').map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.cioRef || ''); }).join('') + '</select></label>' +
+          (goalList('cio').length ? '' : '<p class="note">Nog geen CIO Office-doelen. Vul ze in via PI-instellingen.</p>') + '</div>') +
         '<label class="field">Hypothese<textarea class="prose" id="o-hyp" data-f="hypothesis" rows="3" placeholder="Wij geloven dat [aanpak] leidt tot [resultaat]. We weten dat het werkt als [meetbaar signaal]."' + ro + '>' + esc(o.hypothesis || '') + '</textarea></label>' +
         '<div class="three"><label class="field">Commitment<select id="o-commit" data-f="commitment"' + ro + '>' + opt('committed', 'Committed', o.commitment || 'committed') + opt('stretch', 'Stretch (uncommitted)', o.commitment || 'committed') + '</select></label>' +
         '<label class="field">BV gepland (1–10)<input id="o-bvp" data-f="bvPlanned" type="number" min="1" max="10" value="' + esc(o.bvPlanned == null ? '' : o.bvPlanned) + '"' + ro + '></label>' +
@@ -725,7 +774,9 @@
         (S.ogsmMissing ? '<div class="sec"><h3>OGSM</h3><p class="note">OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.</p></div>' :
         '<div class="sec" id="ogSection"><h3>OGSM</h3><p class="note">Vul de ambitie en de doelen uit jullie OGSM in. Outcomes koppel je daarna aan een doel; het bord groepeert ze per doel.</p>' +
         '<label class="field">Ambitie (Objective)<input id="og-obj" data-ogobj="1" type="text" value="' + esc(objective()) + '" placeholder="De ambitie uit jullie OGSM"' + ro + '></label>' +
-        '<div id="ogList" class="sec"></div>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addgoal" style="align-self:flex-start">+ Doel</button>') + '</div>') +
+        '<div id="ogList" class="sec"></div>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addgoal" style="align-self:flex-start">+ Doel</button>') +
+        '<h3 style="margin-top:12px">CIO Office-doelen</h3><p class="note">De doelen van het CIO Office. Ze vormen de tweede kolom op het bord, tussen het OGSM-doel en de outcome.</p>' +
+        '<div id="cioList" class="sec"></div>' + (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addgoal" data-kind="cio" style="align-self:flex-start">+ CIO Office-doel</button>') + '</div>') +
         (S.readOnly ? '' : '<div class="sec"><h3>Gegevens overnemen</h3><p class="note">Plak hier de tekst uit “Delen / importeren” van het eerdere canvas-bord. Outcomes en mijlpalen worden toegevoegd aan dit bord.</p>' +
         '<label class="field">Bordgegevens<textarea id="s-import" rows="6"></textarea></label><div class="actions"><button class="btn" type="button" data-d="import">Toevoegen aan bord</button><span class="msg" id="importMsg" role="status"></span></div></div>');
     }
@@ -987,9 +1038,9 @@
       return;
     }
     if (sel.kind === 's' && d === 'addgoal') {
-      var n0 = goalList().length, gid = rid('g');
-      insert('ogsm', gid, Object.assign({ kind: 'goal', code: 'G' + (n0 + 1), title: '', strategy: '', measure: '', color: (n0 % 6) + 1, order: n0 + 1 }, meta()));
-      renderOgList(true); var ti = $('ogList').querySelector('[data-g="' + gid + '"][data-gf="title"]'); if (ti) ti.focus(); renderAll();
+      var kind = b.dataset.kind === 'cio' ? 'cio' : 'goal', n0 = goalList(kind).length, gid = rid(kind === 'cio' ? 'c' : 'g');
+      insert('ogsm', gid, Object.assign({ kind: kind, code: (kind === 'cio' ? 'C' : 'G') + (n0 + 1), title: '', strategy: '', measure: '', color: kind === 'cio' ? ((n0 + 3) % 6) + 1 : (n0 % 6) + 1, order: n0 + 1 }, meta()));
+      renderOgList(true); var ti = $(kind === 'cio' ? 'cioList' : 'ogList').querySelector('[data-g="' + gid + '"][data-gf="title"]'); if (ti) ti.focus(); renderAll();
       return;
     }
     if (sel.kind === 's' && d === 'delgoal') {
@@ -1000,7 +1051,7 @@
     if (sel.kind === 's' && d === 'delgoal2') {
       var did = b.dataset.id;
       sortedOutcomes().forEach(function (o) {
-        var p2 = {}; if (o.ogsmRef === did) p2.ogsmRef = '';
+        var p2 = {}; if (o.ogsmRef === did) p2.ogsmRef = ''; if (o.cioRef === did) p2.cioRef = '';
         if (Array.isArray(o.ogsmExtra) && o.ogsmExtra.indexOf(did) >= 0) p2.ogsmExtra = o.ogsmExtra.filter(function (x) { return x !== did; });
         if (Object.keys(p2).length) queue('outcomes', o.id, p2, 0);
       });

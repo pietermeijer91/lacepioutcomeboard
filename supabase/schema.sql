@@ -20,6 +20,7 @@ create table if not exists public.outcomes (
   ogsm_ref    text not null default '',             -- OGSM-hoofddoel ('' = niet gekoppeld)
   ogsm_extra  jsonb not null default '[]'::jsonb,   -- extra OGSM-doelen
   checks      jsonb not null default '{}'::jsonb,   -- outcome-check: invloed, termijn, meetbaar, capaciteit, eerstestap
+  cio_ref     text not null default '',             -- CIO Office-doel ('' = niet gekoppeld)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text
@@ -126,7 +127,7 @@ end $$;
 -- 5. OGSM — zie ook migrations/007_ogsm.sql
 create table if not exists public.ogsm (
   id          text primary key,
-  kind        text not null default 'goal' check (kind in ('objective','goal')),
+  kind        text not null default 'goal' check (kind in ('objective','goal','cio')),
   code        text not null default '',   -- bijv. G1
   title       text not null default '',
   strategy    text not null default '',
