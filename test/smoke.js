@@ -71,6 +71,11 @@ const shot = process.argv.includes('--shot');
     await page.click('.dhead [data-d="close"]');
   });
 
+  await check('outcome compact op het bord', async () => {
+    assert(await page.locator('#board .hyp, #board .confbox, #board details.learn').count() === 0, 'hypothese, check-in-blok of leerlog staat nog op het bord');
+    assert(await page.locator('.row.focus .krs.mini li').count() >= 1, 'key results ontbreken in compacte weergave');
+  });
+
   await check('geen bijdragen-banen op het bord', async () => {
     assert(await page.locator('#board .lane').count() === 0, 'bijdragen staan nog op het bord');
     assert(!(await page.locator('#board .row.head').innerText()).includes('Bijdragen'), 'kolom Bijdragen staat nog in de kop');
@@ -166,7 +171,7 @@ const shot = process.argv.includes('--shot');
     await page.click('[data-d="addci"]');
     assert(await page.locator('#ciList li').count() === 3, 'check-in niet in lijst');
     await page.click('.dhead [data-d="close"]');
-    assert((await page.locator('.row.focus .confbox .conf').innerText()).includes('2/5'), 'vertrouwen niet op bord');
+    assert((await page.locator('.row.focus .conf').innerText()).includes('2/5'), 'vertrouwen niet op bord');
   });
 
   await check('outcome toevoegen', async () => {
