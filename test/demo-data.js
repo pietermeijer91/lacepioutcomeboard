@@ -14,7 +14,7 @@
   function daysAgo(n) { var d = new Date(); d.setDate(d.getDate() - n); return d.toISOString(); }
 
   var db = {
-    settings: [{ id: 'pi', pi_start: iso(start), iteration_weeks: 2, pi_name: 'Demo-PI', iteration_count: 5, ip_iteration: false }],
+    settings: [{ id: 'pi', pi_start: iso(start), iteration_weeks: 2, pi_name: 'Demo-PI', iteration_count: 5, ip_iteration: false, next_pi_name: '27.1' }],
     ogsm: [
       { id: 'objective', kind: 'objective', title: 'Voorbeeld-ambitie: wendbaar en datagedreven bijdragen aan de energietransitie', sort_order: 0 },
       { id: 'g1', kind: 'goal', code: 'G1', title: 'Voorspelbaar leveren', strategy: 'Sturen op flow en outcomes', measure: 'Predictability ≥ 80%', color: 1, sort_order: 1 },
@@ -33,6 +33,8 @@
       { id: 'o2', title: 'PI Planning in één dag', sort_order: 2, ogsm_ref: 'g1', cio_ref: 'c2', checks: { invloed: true, termijn: true, capaciteit: true }, commitment: 'stretch', bv_planned: 5, bv_actual: null, hypothesis: '',
         krs: [{ id: 'k3', text: 'Duur PI Planning in dagen', kind: 'lagging', start: 2, target: 1, current: 2, unit: '' }],
         contribs: [{ id: 'c3', owner: 'Voorbeeld C', text: 'Draaiboek' }], checkins: [] },
+      { id: 'p1', title: 'Portfolio-Kanban voor het LACE', parked: true, sort_order: 100, ogsm_ref: 'g2', krs: [], contribs: [], checkins: [] },
+      { id: 'p2', title: 'Onboarding nieuwe RTE\'s', parked: true, sort_order: 101, krs: [], contribs: [], checkins: [] },
       { id: 'o3', title: '[Lege outcome om mee te testen]', sort_order: 3, commitment: 'committed', krs: [], contribs: [], checkins: [] }
     ],
     milestones: [

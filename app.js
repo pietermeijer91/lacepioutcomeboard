@@ -40,7 +40,7 @@
   var VIEW_KEY = 'lace-pi-view-v1';
 
   /* Kolomnamen in de database <-> veldnamen in de app */
-  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on', ogsmRef: 'ogsm_ref', ogsmExtra: 'ogsm_extra', cioRef: 'cio_ref' };
+  var KEYMAP = { order: 'sort_order', row: 'row_ref', createdAt: 'created_at', updatedAt: 'updated_at', updatedBy: 'updated_by', piStart: 'pi_start', iterationWeeks: 'iteration_weeks', piName: 'pi_name', contrib: 'contrib_ref', iterationCount: 'iteration_count', ipIteration: 'ip_iteration', bvPlanned: 'bv_planned', bvActual: 'bv_actual', outcome: 'outcome_ref', milestone: 'milestone_ref', dependsOn: 'depends_on', ogsmRef: 'ogsm_ref', ogsmExtra: 'ogsm_extra', cioRef: 'cio_ref', nextPiName: 'next_pi_name' };
   var REVMAP = {}; Object.keys(KEYMAP).forEach(function (k) { REVMAP[KEYMAP[k]] = k; });
   function toRow(o) { var r = {}; Object.keys(o).forEach(function (k) { r[KEYMAP[k] || k] = o[k]; }); return r; }
   function fromRow(r) { var o = {}; Object.keys(r).forEach(function (k) { if (k !== 'id') o[REVMAP[k] || k] = r[k]; }); return o; }
@@ -49,8 +49,8 @@
   var pending = {};
   var saving = 0;
 
-  try { var vw = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; S.focus = vw.focus || null; S.expandAll = !!vw.expandAll; S.pf = vw.pf || {}; S.showDeps = vw.showDeps !== false; } catch (e) {}
-  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ focus: S.focus, expandAll: S.expandAll, pf: S.pf, showDeps: S.showDeps })); } catch (e) {} }
+  try { var vw = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; S.focus = vw.focus || null; S.expandAll = !!vw.expandAll; S.pf = vw.pf || {}; S.showDeps = vw.showDeps !== false; S.parkOpen = vw.parkOpen !== false; } catch (e) {}
+  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ focus: S.focus, expandAll: S.expandAll, pf: S.pf, showDeps: S.showDeps, parkOpen: S.parkOpen })); } catch (e) {} }
   function setFocus(id) { S.focus = id; saveView(); }
 
   function $(id) { return document.getElementById(id); }
@@ -98,7 +98,10 @@
 
   /* ---------- afgeleid ---------- */
   function krPct(k) { var s = num(k.start), t = num(k.target), c = num(k.current); if (t === s) return c >= t ? 100 : 0; return Math.max(0, Math.min(100, Math.round((c - s) / (t - s) * 100))); }
-  function sortedOutcomes() { return Object.keys(S.outcomes).map(function (id) { return Object.assign({ id: id }, S.outcomes[id]); }).sort(function (a, b) { return num(a.order) - num(b.order) || String(a.id).localeCompare(b.id); }); }
+  function allOutcomes() { return Object.keys(S.outcomes).map(function (id) { return Object.assign({ id: id }, S.outcomes[id]); }).sort(function (a, b) { return num(a.order) - num(b.order) || String(a.id).localeCompare(b.id); }); }
+  function sortedOutcomes() { return allOutcomes().filter(function (o) { return !o.parked; }); }
+  function parkedOutcomes() { return allOutcomes().filter(function (o) { return !!o.parked; }); }
+  function nextPi() { return S.settings.nextPiName || '27.1'; }
   function msList() { return Object.keys(S.milestones).map(function (id) { return Object.assign({ id: id }, S.milestones[id]); }).sort(function (a, b) { return String(a.createdAt || '').localeCompare(String(b.createdAt || '')); }); }
   function outcomeStats(o, T, ms) {
     var krs = Array.isArray(o.krs) ? o.krs : [];
@@ -192,7 +195,7 @@
   }
   function focusId(outs) {
     if (S.focus === '__none__') return null;
-    if (S.focus && S.outcomes[S.focus]) return S.focus;
+    if (S.focus && S.outcomes[S.focus] && !S.outcomes[S.focus].parked) return S.focus;
     return outs.length ? outs[0].id : null;
   }
 
@@ -286,10 +289,6 @@
       return '<div class="it' + (i === T.nowIdx ? ' now' : '') + '">' + esc(it.name) + (i === T.nowIdx ? '<span class="nowpill">Nu</span>' : '') + '<span class="dates">' + esc(it.dates) + '</span></div>';
     }).join('') + '</div></div></div></div></div>';
 
-    var art = ms.filter(function (m) { return m.row === 'art'; });
-    h += '<div class="ogroup ritme"><div class="ogcell ogempty"></div><div class="ogrows"><div class="cgroup"><div class="ogcell ogempty"></div><div class="ogrows"><div class="row art"><div class="ocell" style="grid-column:1;grid-row:1"><h3>LACE-ritme</h3><span class="meta">Vaste teammomenten, zoals PI Planning en Inspect &amp; Adapt</span></div><div class="lane" style="grid-column:2;grid-row:1"></div>' +
-      T.iters.map(function (n, i) { return cell(i, 1, T, art.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn('art', i, ''), '', { row: 'art', contrib: '' }); }).join('') + '</div></div></div></div></div>';
-
     if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je bijdragen, key results en mijlpalen per iteratie toevoegen.</div>';
 
     function outcomeRow(o) {
@@ -365,6 +364,7 @@
     if (!S.readOnly) h += '<div class="addrow"><button type="button" class="btn ghost" data-act="addoutcome">+ PI-outcome toevoegen</button></div>';
     $('board').style.setProperty('--cols', T.iters.length);
     renderOgsmBanner();
+    renderParking();
     $('board').innerHTML = h + '<svg class="deps" aria-hidden="true"><defs>' +
       '<marker id="dep-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head"></path></marker>' +
       '<marker id="dep-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" class="dep-head bad"></path></marker></defs><g id="ogLines"></g><g id="depLines"></g></svg>';
@@ -435,6 +435,7 @@
     if (res && res.error) {
       var e = res.error;
       if (/checks/.test(e.message || '')) { toast('De outcome-check is nog niet geactiveerd. Voer supabase/migrations/008_outcome_check.sql uit in Supabase.'); return; }
+      if (/parked|next_pi_name/.test(e.message || '')) { toast('De parkeerplaats is nog niet geactiveerd. Voer supabase/migrations/010_parkeerplaats.sql uit in Supabase.'); return; }
       if (/cio_ref|ogsm_kind_check/.test(e.message || '')) { toast('De CIO Office-kolom is nog niet geactiveerd. Voer supabase/migrations/009_cio_office.sql uit in Supabase.'); return; }
       if (/ogsm/.test(e.message || '')) { toast('OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.'); return; }
       if (/depends_on/.test(e.message || '')) { toast('Afhankelijkheden zijn nog niet geactiveerd. Voer supabase/migrations/006_afhankelijkheden.sql uit in Supabase.'); return; }
@@ -491,12 +492,58 @@
 
   // Nieuwe mijlpaal via de knop: bij de opengeklapte outcome (of LACE-ritme) in de huidige iteratie.
   function addMsQuick(outcomeId) {
-    var outs = sortedOutcomes(), row = outcomeId || focusId(outs) || 'art';
+    var outs = sortedOutcomes(), row = outcomeId || focusId(outs);
+    if (!row) { toast('Voeg eerst een PI-outcome toe; een mijlpaal hoort altijd bij een outcome.'); return; }
     var T = timeInfo(), iter = T.nowIdx >= 0 ? Math.min(T.nowIdx, lastCol()) : 0;
     if (row !== 'art') setFocus(row);
     addMs(row, iter, '');
     toast('Nieuwe mijlpaal: kies in het paneel de iteratie, de outcome en de baan.');
   }
+
+  /* ---------- parkeerplaats volgende PI ---------- */
+  function renderParking() {
+    var el = $('parking'); if (!el) return;
+    var items = parkedOutcomes(), open = S.parkOpen !== false;
+    var keep = $('parkInput') ? $('parkInput').value : '', hadFocus = document.activeElement && document.activeElement.id === 'parkInput';
+    var h = '<div class="phead"><button type="button" class="ptoggle" data-pk="toggle" aria-expanded="' + open + '"><span class="chev" aria-hidden="true">' + (open ? '▾' : '▸') + '</span>Parkeerplaats PI ' + esc(nextPi()) + ' <span class="pcnt">' + items.length + '</span></button>' +
+      '<span class="meta">Sleep een item naar een OGSM- of CIO Office-doel op het bord om er een PI-outcome van te maken.</span></div>';
+    if (open) {
+      h += '<div class="plist">' + items.map(function (o) {
+        var g = o.ogsmRef && S.ogsm[o.ogsmRef];
+        return '<button type="button" class="pcard" data-pk="open" data-id="' + esc(o.id) + '" title="Klik om uit te werken, sleep naar het bord om in te plannen"><span class="pgrip" aria-hidden="true">⋮⋮</span><span class="pt">' + esc(o.title || '(zonder titel)') + '</span>' +
+          (g ? '<span class="ogtag ogc-' + ogColor(g) + '">' + esc(g.code || g.title || '') + '</span>' : '') + '</button>';
+      }).join('') +
+        (S.readOnly ? '' : '<div class="padd"><input type="text" id="parkInput" autocomplete="off" aria-label="Nieuw item voor PI ' + esc(nextPi()) + '" placeholder="Nieuw item voor PI ' + esc(nextPi()) + ', Enter = toevoegen"></div>') +
+        (items.length ? '' : '<span class="meta pempty">Nog niets geparkeerd.</span>') + '</div>';
+    }
+    el.innerHTML = h;
+    var pi = $('parkInput'); if (pi) { pi.value = keep; if (hadFocus) pi.focus(); }
+  }
+  function addParked(title) {
+    if (!title) return;
+    insert('outcomes', rid('o'), Object.assign({ title: title, parked: true, order: Date.now(), krs: [], contribs: [], createdAt: new Date().toISOString() }, meta()));
+    renderAll(); toast('Geparkeerd voor PI ' + nextPi() + '.');
+  }
+  function unpark(id, ogsmRef, cioRef) {
+    var o = S.outcomes[id]; if (!o) return;
+    var max = sortedOutcomes().reduce(function (a, x) { return Math.max(a, num(x.order)); }, 0);
+    var p = { parked: false, order: max + 1 };
+    if (ogsmRef !== undefined) p.ogsmRef = ogsmRef;
+    if (cioRef !== undefined) p.cioRef = cioRef;
+    setFocus(id);
+    queue('outcomes', id, p, 0);
+    renderAll(); toast('‘' + (o.title || 'Item') + '’ is nu een PI-outcome.');
+  }
+  $('parking').addEventListener('click', function (e) {
+    if (drag.suppress) { drag.suppress = false; return; }
+    var b = e.target.closest('[data-pk]'); if (!b) return;
+    if (b.dataset.pk === 'toggle') { S.parkOpen = !(S.parkOpen !== false); saveView(); renderParking(); }
+    else if (b.dataset.pk === 'open') openDrawer({ kind: 'o', id: b.dataset.id });
+  });
+  $('parking').addEventListener('keydown', function (e) {
+    if (e.target.id !== 'parkInput' || e.key !== 'Enter' || S.readOnly || !S.ready) return;
+    e.preventDefault(); var t = e.target.value.trim(); e.target.value = ''; addParked(t);
+  });
 
   /* ---------- mijlpaal snel toevoegen in een iteratiecel ---------- */
   function commitQuick() {
@@ -552,12 +599,13 @@
   function dropCellAt(x, y) {
     var el = document.elementFromPoint(x, y);
     if (!el) return null;
+    if (drag.kind === 'p') { var cg = el.closest('#board .ogroup:not(.head) .cgroup'); if (cg) return cg; return el.closest('.boardbox'); }
     return drag.kind === 't' ? el.closest('[data-tdrop-status]') : el.closest('[data-drop-row]');
   }
   document.addEventListener('pointerdown', function (e) {
     if (e.pointerType === 'touch' || e.button !== 0 || S.readOnly || !S.ready) return;
-    var b = e.target.closest('#board .callout, #board .mdot, #planner .tcard'); if (!b) return;
-    drag.kind = b.classList.contains('tcard') ? 't' : 'm';
+    var b = e.target.closest('#board .callout, #board .mdot, #planner .tcard, #parking .pcard'); if (!b) return;
+    drag.kind = b.classList.contains('tcard') ? 't' : b.classList.contains('pcard') ? 'p' : 'm';
     drag.id = b.dataset.id; drag.src = b; drag.sx = e.clientX; drag.sy = e.clientY; drag.on = false;
   });
   window.addEventListener('pointermove', function (e) {
@@ -592,6 +640,15 @@
     if (!was) return;
     drag.suppress = true; setTimeout(function () { drag.suppress = false; }, 0);
     if (cancel || !c) return;
+    if (drag.kind === 'p') {
+      var og = '', ci = '';
+      if (c.classList.contains('cgroup')) {
+        var gEl = c.closest('.ogroup').querySelector(':scope > [data-og]'), cEl = c.querySelector(':scope > [data-cio]');
+        og = gEl && gEl.dataset.og !== '_none' ? gEl.dataset.og : ''; ci = cEl && cEl.dataset.cio !== '_none' ? cEl.dataset.cio : '';
+        unpark(id, og, ci);
+      } else unpark(id);
+      return;
+    }
     if (drag.kind === 't') {
       var tk = S.tasks[id]; if (!tk) return;
       var to = c.dataset.tdropOutcome, ts = c.dataset.tdropStatus;
@@ -706,7 +763,7 @@
       body = '<label class="field">Titel<input id="m-title" data-f="title" type="text" value="' + esc(m.title) + '"' + ro + '></label>' +
         '<div class="two"><label class="field">Soort<select id="m-type" data-f="type"' + ro + '>' + Object.keys(TYPES).map(function (k) { return opt(k, TYPES[k].l, m.type); }).join('') + '</select></label>' +
         '<label class="field">Status<select id="m-status" data-f="status"' + ro + '>' + Object.keys(STATUS).map(function (k) { return opt(k, STATUS[k], m.status || 'planned'); }).join('') + '</select></label>' +
-        '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + opt('art', 'LACE-ritme', m.row) + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
+        '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + (m.row === 'art' ? opt('art', 'LACE-ritme (niet meer op het bord)', m.row) : '') + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
         '<label class="field">Bijdrage (baan)<select id="m-contrib" data-f="contrib"' + (S.readOnly || m.row === 'art' ? ' disabled' : '') + '>' + contribOptions(m.row, m.contrib) + '</select></label>' +
         '<label class="field">Iteratie<select id="m-iter" data-f="iter"' + ro + '>' + iterNames().map(function (n, i) { return opt(i, n, iterOf(m)); }).join('') + '</select></label></div>' +
         '<div class="sec"><h3>Leerpunt</h3><p class="note">Vooral bij leermijlpalen: wat hebben we geleerd, en wat doen we ermee?</p>' +
@@ -761,7 +818,11 @@
         '<button class="btn primary" type="button" data-d="addci">Check-in toevoegen</button></div>') +
         '<ul id="ciList" class="cilist"></ul></div>' +
         '<p class="note" id="o-who">' + esc(whoLabel(o)) + '</p>';
-      foot = S.readOnly ? '' : '<button class="btn" type="button" data-d="up">↑ Omhoog</button><button class="btn" type="button" data-d="down">↓ Omlaag</button><span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
+      if (o.parked) title = 'Geparkeerd voor PI ' + esc(nextPi());
+      foot = S.readOnly ? '' : (o.parked
+        ? '<button class="btn primary" type="button" data-d="unpark">Naar PI-outcomes</button>'
+        : '<button class="btn" type="button" data-d="up">↑ Omhoog</button><button class="btn" type="button" data-d="down">↓ Omlaag</button><button class="btn" type="button" data-d="park">Parkeren voor PI ' + esc(nextPi()) + '</button>') +
+        '<span style="flex:1"></span><span id="delZone"><button class="btn danger" type="button" data-d="askdel">Verwijderen</button></span>';
     } else {
       var s = S.settings;
       title = 'PI-instellingen';
@@ -771,6 +832,7 @@
         '<div class="two"><label class="field">Aantal iteraties<select id="s-count" data-s="iterationCount"' + ro + '>' + [2, 3, 4, 5, 6].map(function (n) { return opt(n, n + ' iteraties', num(s.iterationCount) || 4); }).join('') + '</select></label>' +
         '<label class="field">IP-iteratie<select id="s-ip" data-s="ipIteration"' + ro + '>' + opt('true', 'Ja, aparte IP-iteratie', String(s.ipIteration !== false)) + opt('false', 'Nee', String(s.ipIteration !== false)) + '</select></label></div>' +
         '<p class="note">Na de laatste iteratie volgt altijd een kolom voor de volgende PI. Deze instellingen gelden voor iedereen.</p>' +
+        '<label class="field">Naam volgende PI (parkeerplaats)<input id="s-next" data-s="nextPiName" type="text" placeholder="27.1" value="' + esc(s.nextPiName || '27.1') + '"' + ro + '></label>' +
         (S.ogsmMissing ? '<div class="sec"><h3>OGSM</h3><p class="note">OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.</p></div>' :
         '<div class="sec" id="ogSection"><h3>OGSM</h3><p class="note">Vul de ambitie en de doelen uit jullie OGSM in. Outcomes koppel je daarna aan een doel; het bord groepeert ze per doel.</p>' +
         '<label class="field">Ambitie (Objective)<input id="og-obj" data-ogobj="1" type="text" value="' + esc(objective()) + '" placeholder="De ambitie uit jullie OGSM"' + ro + '></label>' +
@@ -1004,6 +1066,8 @@
     }
     if (sel.kind === 'o') {
       var o = S.outcomes[sel.id]; if (!o) return;
+      if (d === 'park') { queue('outcomes', sel.id, { parked: true }, 0); closeDrawer(); renderAll(); toast('Geparkeerd voor PI ' + nextPi() + '.'); return; }
+      if (d === 'unpark') { closeDrawer(); unpark(sel.id); return; }
       if (d === 'addkr') { var krs = clone(o.krs || []); krs.push({ id: rid('k'), text: '', start: 0, target: 100, current: 0, unit: '%' }); queue('outcomes', sel.id, { krs: krs }, 0); renderKrList(true); var ins = $('krList').querySelectorAll('input[data-kf="text"]'); if (ins.length) ins[ins.length - 1].focus(); }
       else if (d === 'addci') {
         var cis = clone(Array.isArray(o.checkins) ? o.checkins : []);
@@ -1310,7 +1374,7 @@
 
   /* ---------- laden + realtime ---------- */
   function overlay(col, id, body) { var p = pending[col + '/' + id]; return p ? Object.assign({}, body, p.patch) : body; }
-  function applySettings(r) { var v = fromRow(r); S.settings = { piStart: v.piStart || '2026-12-09', iterationWeeks: num(v.iterationWeeks) || 2, piName: v.piName || '', iterationCount: num(v.iterationCount) || 4, ipIteration: v.ipIteration !== false }; }
+  function applySettings(r) { var v = fromRow(r); S.settings = { piStart: v.piStart || '2026-12-09', iterationWeeks: num(v.iterationWeeks) || 2, piName: v.piName || '', iterationCount: num(v.iterationCount) || 4, ipIteration: v.ipIteration !== false, nextPiName: v.nextPiName || '27.1' }; }
 
   function loadAll() {
     return Promise.all([S.sb.from('outcomes').select('*'), S.sb.from('milestones').select('*'), S.sb.from('settings').select('*').eq('id', 'pi')]).then(function (res) {

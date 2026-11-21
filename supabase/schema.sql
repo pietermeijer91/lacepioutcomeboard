@@ -21,6 +21,7 @@ create table if not exists public.outcomes (
   ogsm_extra  jsonb not null default '[]'::jsonb,   -- extra OGSM-doelen
   checks      jsonb not null default '{}'::jsonb,   -- outcome-check: invloed, termijn, meetbaar, capaciteit, eerstestap
   cio_ref     text not null default '',             -- CIO Office-doel ('' = niet gekoppeld)
+  parked      boolean not null default false,        -- true = op de parkeerplaats voor de volgende PI
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text
@@ -52,6 +53,7 @@ create table if not exists public.settings (
   pi_name          text not null default '',
   iteration_count  integer not null default 4 check (iteration_count between 2 and 6),
   ip_iteration     boolean not null default true,
+  next_pi_name     text not null default '27.1',
   updated_at       timestamptz not null default now(),
   updated_by       text
 );
