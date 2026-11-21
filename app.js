@@ -521,7 +521,8 @@
   }
   function addParked(title) {
     if (!title) return;
-    insert('outcomes', rid('o'), Object.assign({ title: title, parked: true, order: Date.now(), krs: [], contribs: [], createdAt: new Date().toISOString() }, meta()));
+    var maxAll = allOutcomes().reduce(function (m, x) { return Math.max(m, num(x.order)); }, 0);
+    insert('outcomes', rid('o'), Object.assign({ title: title, parked: true, order: maxAll + 1, krs: [], contribs: [], createdAt: new Date().toISOString() }, meta()));
     renderAll(); toast('Geparkeerd voor PI ' + nextPi() + '.');
   }
   function unpark(id, ogsmRef, cioRef) {
