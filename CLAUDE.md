@@ -39,3 +39,6 @@ Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `mai
 ## Werkwijze
 - Werk op een eigen branch en open een pull request naar `main`; push niet direct naar `main`.
 - Commitberichten en PR-beschrijvingen in het Nederlands.
+
+## Versie en cache
+GitHub Pages cachet bestanden tot ±10 minuten. `index.html` laadt `styles.css`, `config.js` en `app.js` met `?v=<versie>`; verhoog die versie (ook in de tekst `Versie …` onder het bord) bij elke wijziging die live gaat, zodat browsers direct de nieuwe bestanden ophalen.
