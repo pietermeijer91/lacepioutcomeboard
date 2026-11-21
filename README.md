@@ -1,6 +1,6 @@
 # LACE PI Outcome Board
 
-Een gedeeld bord waarop het LACE-team richting PI-outcomes plant en bijhoudt hoe ver we zijn: outcomes met key results en bijdragen, mijlpalen per iteratie (vaste datum, leren, synchronisatie, release) en een samenvatting bovenaan. Wijzigingen zijn direct zichtbaar voor iedereen die het bord open heeft.
+Een gedeeld bord waarop het LACE-team richting PI-outcomes plant en bijhoudt hoe ver we zijn: outcomes met key results, mijlpalen per iteratie (vaste datum, leren, synchronisatie, release) en een samenvatting bovenaan. Wijzigingen zijn direct zichtbaar voor iedereen die het bord open heeft.
 
 - **Frontend:** statische site (`index.html`, `styles.css`, `app.js`), geen build-stap.
 - **Opslag en live updates:** [Supabase](https://supabase.com) (Postgres + Realtime).
@@ -28,8 +28,8 @@ python3 -m http.server 8000
 
 ## Gebruik
 - **Focus-weergave**: klik op een outcome om die uit te klappen; de andere outcomes tonen dan alleen kleine ruitjes. Met “Alles uitklappen” zie je alles tegelijk.
-- **Banen per bijdrage**: elke bijdrage (wie/team) van een outcome krijgt een eigen baan. Een mijlpaal koppel je aan een bijdrage via “Bijdrage (baan)”.
-- **Slepen**: sleep een mijlpaal met de muis naar een andere iteratie, baan of outcome. Op telefoon en tablet verplaats je via het zijpaneel (Eerder/Later, Bijdrage).
+- **Eén rij per outcome**: alle mijlpalen van een outcome staan op één rij, per iteratie. Er zijn geen aparte banen per bijdrage.
+- **Slepen**: sleep een mijlpaal met de muis naar een andere iteratie of outcome. Op telefoon en tablet verplaats je via het zijpaneel (Eerder/Later).
 - **Afhankelijkheden**: geef in het zijpaneel van een mijlpaal aan waar hij op wacht. Het bord tekent een lijn tussen de mijlpalen; rood gestippeld als de voorganger later gepland staat of gemist is. Ga met de muis over een mijlpaal om alleen zijn lijnen uit te lichten.
 - **Vandaag-lijn**: een oranje lijn markeert de huidige dag; geplande mijlpalen in een voorbije iteratie krijgen een gestippelde rand.
 - **+ PI-outcome**: voeg een outcome toe en vul de key results in (start, doel, nu). De voortgang en de status (Gepland, Op koers, Aandacht, Achter, Behaald) worden berekend tegenover de verwachte voortgang op basis van de tijd in de PI.
@@ -43,7 +43,7 @@ python3 -m http.server 8000
 - **Outcome-check**: in het zijpaneel van een outcome vijf vragen om haalbaarheid te toetsen (invloed, termijn, meetbaar tijdens de PI, capaciteit, eerste stap), met tips op basis van het bord. Op het bord staat ‘Nog niet getoetst’, ‘Check x/5’ of ‘✓ Getoetst’.
 - **CIO Office-doelen**: tweede kolom tussen OGSM-doel en outcome, met lijnen. Beheren via PI-instellingen; koppelen via Bewerken bij een outcome.
 - **Parkeerplaats volgende PI**: boven het bord. Typ een item en druk op Enter om het te parkeren; sleep het naar een OGSM- of CIO Office-groep op het bord om er een PI-outcome van te maken. Via Bewerken kun je een outcome ook weer parkeren. De naam van de volgende PI stel je in bij PI-instellingen.
-- **Mijlpaal snel toevoegen**: klik in een iteratie op ‘+ mijlpaal’, typ de titel en druk op Enter (Esc annuleert). Klik daarna op het kaartje voor soort, status en baan.
+- **Mijlpaal snel toevoegen**: klik in een iteratie op ‘+ mijlpaal’, typ de titel en druk op Enter (Esc annuleert). Klik daarna op het kaartje voor soort en status.
 - **Planner** (tab): kanban per outcome (*Te doen, Bezig, Wacht op, Klaar*) plus een rij *Run & overig*. Taken hangen aan een outcome en optioneel aan een mijlpaal; bij de mijlpaal zie je dan hoeveel taken klaar zijn. Filters *Mijn taken*, *Deze iteratie* en *Vastgelopen of te laat*, en een waarschuwing bij meer dan 3 taken tegelijk in *Bezig* per persoon.
 - **Weekly sync** (tab): loop per outcome door de sync, met timer van 5 minuten, check-in, mijlpalen van nu en de volgende iteratie, en taken die vastzitten. Het laatste scherm (✓) toont wat nog openstaat: outcomes zonder check-in deze week, mijlpalen met risico en vastgelopen taken.
 - **PI-instellingen**: naam van de PI, startdatum, iteratielengte, aantal iteraties en wel of geen IP-iteratie. Hier kun je ook de gegevens uit het eerdere canvas-bord plakken.
@@ -52,7 +52,7 @@ python3 -m http.server 8000
 | Tabel | Inhoud |
 |---|---|
 | `outcomes` | titel, volgorde, `krs` en `contribs` als JSON |
-| `milestones` | `row_ref` (`art` of een outcome-id), `contrib_ref` (de bijdrage/baan), iteratie 0–5, titel, soort, status |
+| `milestones` | `row_ref` (`art` of een outcome-id), `contrib_ref` (niet meer gebruikt op het bord), iteratie 0–5, titel, soort, status |
 | `settings` | één rij `pi`: startdatum, iteratielengte, naam |
 
 Bij gelijktijdig typen in hetzelfde veld wint de laatst opgeslagen wijziging.
