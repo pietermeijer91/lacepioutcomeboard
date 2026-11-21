@@ -67,7 +67,7 @@
       then: function (resolve, reject) {
         var rows = db[table] || (db[table] = []);
         var match = function (r) { return filters.every(function (f) { return r[f[0]] === f[1]; }); };
-        if (op === 'insert') [].concat(payload).forEach(function (r) { rows.push(Object.assign({}, r)); });
+        if (op === 'insert') [].concat(payload).forEach(function (r) { if (table === 'outcomes') window.__lastOutcomeInsertOrder = r.sort_order; rows.push(Object.assign({}, r)); });
         if (op === 'update') rows.forEach(function (r) { if (match(r)) Object.assign(r, payload); });
         if (op === 'upsert') { var ex = rows.find(function (r) { return r.id === payload.id; }); if (ex) Object.assign(ex, payload); else rows.push(Object.assign({}, payload)); }
         if (op === 'delete') db[table] = rows.filter(function (r) { return !match(r); });

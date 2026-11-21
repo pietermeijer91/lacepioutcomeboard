@@ -128,6 +128,7 @@ const shot = process.argv.includes('--shot');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(100);
     assert(await page.locator('#parking .pcard').count() === 3, 'item niet geparkeerd');
+    assert(await page.evaluate(() => window.__lastOutcomeInsertOrder) < 2147483647, 'volgnummer past niet in de database (integer)');
     const card = await page.locator('#parking .pcard[data-id="p1"]').boundingBox();
     const target = await page.locator('.ciocell[data-cio="c1"]').locator('xpath=..').boundingBox();
     await page.mouse.move(card.x + 20, card.y + card.height / 2);
