@@ -521,7 +521,8 @@
   }
   function addParked(title) {
     if (!title) return;
-    var maxAll = allOutcomes().reduce(function (m, x) { return Math.max(m, num(x.order)); }, 0);
+    // sort_order is een integer-kolom: blijf ruim onder 2^31, ook als er lokaal nog een oud, te groot getal staat.
+    var maxAll = allOutcomes().reduce(function (m, x) { var v = num(x.order); return v < 1e9 ? Math.max(m, v) : m; }, 0);
     insert('outcomes', rid('o'), Object.assign({ title: title, parked: true, order: maxAll + 1, krs: [], contribs: [], createdAt: new Date().toISOString() }, meta()));
     renderAll(); toast('Geparkeerd voor PI ' + nextPi() + '.');
   }
