@@ -43,6 +43,7 @@
       { id: 'm3', row_ref: 'o1', contrib_ref: 'c1', iter: 0, title: 'Datamodel gevalideerd', type: 'learn', status: 'done', learning: 'Lead time klopt alleen als statussen in Jira gelijk zijn.', decision: 'adjust', created_at: daysAgo(28) },
       { id: 'm4', row_ref: 'o1', contrib_ref: 'c1', iter: 2, title: 'Dashboard live voor 2 teams', type: 'release', status: 'planned', depends_on: ['m3'], created_at: daysAgo(27) },
       { id: 'm5', row_ref: 'o1', contrib_ref: 'c2', iter: 1, title: 'Teamsessie metrics', type: 'sync', status: 'risk', depends_on: ['m4'], created_at: daysAgo(26) },
+      { id: 'm7', row_ref: 'p1', contrib_ref: '', iter: 1, title: 'Voorbereid voor volgende PI', type: 'learn', status: 'planned', created_at: daysAgo(24) },
       { id: 'm6', row_ref: 'o2', contrib_ref: 'c3', iter: 1, title: 'Draaiboek v1', type: 'learn', status: 'planned', created_at: daysAgo(25) }
     ],
     tasks: [

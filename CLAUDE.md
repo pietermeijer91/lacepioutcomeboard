@@ -42,3 +42,6 @@ Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `mai
 
 ## Versie en cache
 GitHub Pages cachet bestanden tot ±10 minuten. `index.html` laadt `styles.css`, `config.js` en `app.js` met `?v=<versie>`; verhoog die versie (ook in de tekst `Versie …` onder het bord) bij elke wijziging die live gaat, zodat browsers direct de nieuwe bestanden ophalen.
+
+## Inhoud laden
+Eenmalige inhoud (zoals de ideeën voor PI 27.1) staat in `supabase/seeds/`. Zo'n script vult alleen lege velden aan, maakt geen dubbelingen en kan veilig opnieuw draaien. Mijlpalen van geparkeerde outcomes tellen niet mee in de voortgang.
