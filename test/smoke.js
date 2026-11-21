@@ -120,6 +120,30 @@ const shot = process.argv.includes('--shot');
     await page.click('.dhead [data-d="close"]');
   });
 
+  await check('parkeerplaats: tonen, toevoegen en naar het bord slepen', async () => {
+    assert((await page.locator('#board').innerText()).indexOf('LACE-ritme') < 0, 'rij LACE-ritme staat er nog');
+    assert(await page.locator('#parking .pcard').count() === 2, 'geparkeerde items ontbreken');
+    assert(await page.locator('[data-oid="p1"]').count() === 0, 'geparkeerd item staat op het bord');
+    await page.fill('#parkInput', 'Nieuw idee');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    assert(await page.locator('#parking .pcard').count() === 3, 'item niet geparkeerd');
+    const card = await page.locator('#parking .pcard[data-id="p1"]').boundingBox();
+    const target = await page.locator('.ciocell[data-cio="c1"]').locator('xpath=..').boundingBox();
+    await page.mouse.move(card.x + 20, card.y + card.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(card.x + 40, card.y + 30, { steps: 3 });
+    await page.mouse.move(target.x + target.width / 2, target.y + 40, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    assert(await page.locator('#parking .pcard[data-id="p1"]').count() === 0, 'item staat nog op de parkeerplaats');
+    assert(await page.locator('.ciocell[data-cio="c1"]').locator('xpath=..').locator('[data-oid="p1"]').count() === 1, 'item niet onder G1/C1 op het bord');
+    await page.click('button[data-act="edit"][data-id="p1"]').catch(async () => { await page.click('[data-oid="p1"] [data-act="focus"]'); await page.click('button[data-act="edit"][data-id="p1"]'); });
+    await page.click('[data-d="park"]');
+    await page.waitForTimeout(100);
+    assert(await page.locator('#parking .pcard[data-id="p1"]').count() === 1, 'terug parkeren werkt niet');
+  });
+
   await check('outcome bewerken (titel)', async () => {
     await page.click('button[data-act="edit"][data-id="o1"]');
     await page.fill('#o-title', 'Testtitel');
@@ -165,12 +189,12 @@ const shot = process.argv.includes('--shot');
     assert(await page.locator('#depLines path.dep').count() >= 2, 'geen lijnen getekend');
     assert(await page.locator('#depLines path.dep.bad').count() >= 1, 'conflict niet rood');
     await page.click('button.callout[data-id="m4"]');
-    await page.selectOption('#m-adddep', 'm1');
+    await page.selectOption('#m-adddep', 'm6');
     await page.waitForTimeout(100);
     assert(await page.locator('#mDeps .deprow').count() === 2, 'afhankelijkheid niet toegevoegd');
     await page.click('.dhead [data-d="close"]');
     await page.waitForTimeout(100);
-    assert(await page.locator('#depLines path[data-from="m1"][data-to="m4"]').count() === 1, 'nieuwe lijn ontbreekt');
+    assert(await page.locator('#depLines path[data-from="m6"][data-to="m4"]').count() === 1, 'nieuwe lijn ontbreekt');
   });
 
   await check('mijlpaal toont gekoppelde taken', async () => {

@@ -493,3 +493,24 @@ header.top h1{font-size:26px;margin:2px 0 0}
 .qadd{display:flex;flex-direction:column;gap:4px;margin-top:auto}
 .qadd input{height:36px;padding:0 8px;border:2px solid var(--accent);border-radius:8px;background:var(--surface);font-size:13px;width:100%;min-width:0}
 .qhint{font-size:10px;color:var(--muted)}
+
+/* ---------- parkeerplaats volgende PI ---------- */
+.parking{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:1px dashed var(--line-strong);border-radius:12px;background:var(--surface-2)}
+.phead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.ptoggle{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:700;min-height:32px;border-radius:6px}
+.ptoggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pcnt{font-size:11px;font-weight:700;background:var(--accent-soft);color:var(--accent);padding:1px 8px;border-radius:999px}
+.plist{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pcard{display:inline-flex;align-items:center;gap:8px;min-height:40px;max-width:280px;padding:6px 12px 6px 8px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink);text-align:left;font-size:13px;font-weight:500}
+.pcard:hover{border-color:var(--accent)}
+@media (hover:hover){ .pcard{cursor:grab} }
+.pcard .pt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pgrip{color:var(--muted);font-size:11px;letter-spacing:-2px}
+.pcard.dragging{opacity:.35}
+.pcard.dragghost{background:var(--surface);max-width:none}
+.padd input{height:40px;min-width:260px;padding:0 10px;border:1px dashed var(--line-strong);border-radius:8px;background:var(--surface);font-size:13px}
+.padd input:focus{border-style:solid;border-color:var(--accent)}
+.pempty{font-style:italic}
+.cgroup.drop-over{outline:3px dashed var(--accent);outline-offset:-3px;background:var(--accent-soft)}
+.boardbox.drop-over{outline:3px dashed var(--accent);outline-offset:2px}
+@media (max-width:640px){ .padd input{min-width:0;width:100%} .padd{flex:1 1 100%} }
