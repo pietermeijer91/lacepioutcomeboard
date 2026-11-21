@@ -304,7 +304,7 @@
         var owners = cs.map(function (c) { return c.owner; }).filter(Boolean);
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
           '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
-          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) + '<span class="ochkline">' + checkBadge(o) + '</span>' +
+          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
           '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
           T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
@@ -322,7 +322,7 @@
         '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1 / span ' + n + '">' +
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
         '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
-        (o.commitment === 'stretch' ? '<span class="tag">Stretch-outcome</span>' : '') + extraGoals(o) + '<span class="ochkline">' + checkBadge(o) + '</span>' +
+        (o.commitment === 'stretch' ? '<span class="tag">Stretch-outcome</span>' : '') + extraGoals(o) +
         (o.hypothesis ? '<p class="hyp"><span class="lbl">Hypothese</span>' + esc(o.hypothesis) + '</p>' : '') +
         '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + (k.kind ? ' <span class="tag k-' + esc(k.kind) + '">' + KIND[k.kind] + '</span>' : '') + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
         (krs.length && krs.every(function (k) { return k.kind === 'lagging'; }) ? '<p class="warn">Alleen achterlopende indicatoren: waar stuur je tijdens de PI op?</p>' : '') +
@@ -805,11 +805,11 @@
         '<div class="three"><label class="field">Commitment<select id="o-commit" data-f="commitment"' + ro + '>' + opt('committed', 'Committed', o.commitment || 'committed') + opt('stretch', 'Stretch (uncommitted)', o.commitment || 'committed') + '</select></label>' +
         '<label class="field">BV gepland (1–10)<input id="o-bvp" data-f="bvPlanned" type="number" min="1" max="10" value="' + esc(o.bvPlanned == null ? '' : o.bvPlanned) + '"' + ro + '></label>' +
         '<label class="field">BV werkelijk (bij I&amp;A)<input id="o-bva" data-f="bvActual" type="number" min="0" max="10" value="' + esc(o.bvActual == null ? '' : o.bvActual) + '"' + ro + '></label></div>' +
-        '<div class="sec ocheck"><h3>Outcome-check <span id="ochkBadge">' + checkBadge(o) + '</span></h3><p class="note">Toets samen of deze outcome haalbaar is. Vink af wat klopt.</p>' +
+        '<details class="sec ocheck"><summary><h3>Outcome-check <span id="ochkBadge">' + checkBadge(o) + '</span></h3></summary><p class="note">Optioneel: toets samen of deze outcome haalbaar is.</p>' +
           OCHECK.map(function (x) {
             return '<label class="ochkrow"><input type="checkbox" data-ochk="' + x.k + '"' + ((o.checks || {})[x.k] ? ' checked' : '') + ro + '><span class="ochktext"><b>' + x.q + '</b><span>' + x.d + '</span>' +
               '<span class="ochkhint" data-ochkhint="' + x.k + '">' + esc(checkHint(Object.assign({ id: sel.id }, o), x.k)) + '</span></span></label>';
-          }).join('') + '</div>' +
+          }).join('') + '</details>' +
         '<div class="sec"><h3>Key results</h3><div style="overflow-x:auto"><div class="grid krgrid"><span class="h">Wat meten we</span><span class="h">Soort</span><span class="h">Start</span><span class="h">Doel</span><span class="h">Nu</span><span class="h unit">Eenheid</span><span></span></div><div id="krList" class="sec"></div></div>' +
         (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addkr" style="align-self:flex-start">+ Key result</button>') + '</div>' +
         '<div class="sec"><h3>Bijdragen (wie doet wat)</h3><div id="cList" class="sec"></div>' +

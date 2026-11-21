@@ -514,3 +514,8 @@ header.top h1{font-size:26px;margin:2px 0 0}
 .cgroup.drop-over{outline:3px dashed var(--accent);outline-offset:-3px;background:var(--accent-soft)}
 .boardbox.drop-over{outline:3px dashed var(--accent);outline-offset:2px}
 @media (max-width:640px){ .padd input{min-width:0;width:100%} .padd{flex:1 1 100%} }
+
+.ocheck > summary{cursor:pointer;list-style:none;min-height:36px;display:flex;align-items:center}
+.ocheck > summary::-webkit-details-marker{display:none}
+.ocheck > summary h3::before{content:"▸ ";color:var(--muted)}
+.ocheck[open] > summary h3::before{content:"▾ "}
