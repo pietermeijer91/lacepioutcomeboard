@@ -20,7 +20,11 @@ const shot = process.argv.includes('--shot');
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   // Externe bestanden (Supabase-bibliotheek, fonts) zijn in demomodus niet nodig.
-  await page.route(/^https?:\/\//, (r) => r.abort());
+  // Export-bibliotheek lokaal aanbieden als die er is (anders slaat de exporttest over)
+  const fs = require('fs');
+  const libCandidates = [path.join(root, 'node_modules/html-to-image/dist/html-to-image.js'), '/opt/npm-tools/node_modules/html-to-image/dist/html-to-image.js'];
+  const lib = libCandidates.find((f) => fs.existsSync(f));
+  await page.route(/^https?:\/\//, (r) => (lib && /html-to-image/.test(r.request().url()) ? r.fulfill({ path: lib, contentType: 'application/javascript' }) : r.abort()));
 
   const results = [];
   async function check(name, fn) {
@@ -87,6 +91,20 @@ const shot = process.argv.includes('--shot');
   await check('outcome compact op het bord', async () => {
     assert(await page.locator('#board .hyp, #board .confbox, #board details.learn').count() === 0, 'hypothese, check-in-blok of leerlog staat nog op het bord');
     assert(await page.locator('.row.focus .krs.mini li').count() >= 1, 'key results ontbreken in compacte weergave');
+  });
+
+  await check('exporteren als afbeelding', async () => {
+    if (!lib) return;
+    await page.click('#exportMenu > summary');
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), page.click('[data-export="png"]')]);
+    assert(/^LACE-PI-Outcome-Board-.*\.png$/.test(dl.suggestedFilename()), 'onverwachte bestandsnaam: ' + dl.suggestedFilename());
+    const out = await dl.path(); const buf = fs.readFileSync(out);
+    assert(buf.length > 20000, 'afbeelding is (bijna) leeg');
+    if (process.argv.includes('--shot')) fs.copyFileSync(out, path.join(__dirname, 'export.png'));
+    assert(!(await page.evaluate(() => document.body.classList.contains('exporting'))), 'exportstand blijft hangen');
+    await page.click('#exportMenu > summary');
+    await page.click('[data-export="pdf"]');
+    await page.waitForSelector('.toast:has-text("Opslaan als PDF")', { timeout: 20000 });
   });
 
   await check('geen bijdragen-banen op het bord', async () => {

@@ -549,6 +549,83 @@
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
   $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderViews(); });
+
+  /* ---------- exporteren (afbeelding of PDF) ---------- */
+  var EXPORT_LIB = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js';
+  function loadExportLib() {
+    if (window.htmlToImage) return Promise.resolve(window.htmlToImage);
+    if (loadExportLib.p) return loadExportLib.p;
+    loadExportLib.p = new Promise(function (resolve, reject) {
+      var sc = document.createElement('script'); sc.src = EXPORT_LIB; sc.async = true;
+      sc.onload = function () { window.htmlToImage ? resolve(window.htmlToImage) : reject(new Error('bibliotheek niet geladen')); };
+      sc.onerror = function () { loadExportLib.p = null; reject(new Error('bibliotheek niet bereikbaar')); };
+      document.head.appendChild(sc);
+    });
+    return loadExportLib.p;
+  }
+  function exportName(ext) {
+    var pi = (S.settings.piName || '').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '');
+    return 'LACE-PI-Outcome-Board' + (pi ? '-PI-' + pi : '') + '-' + new Date().toISOString().slice(0, 10) + '.' + ext;
+  }
+  function boardImage() {
+    var node = $('viewBoard'), T = timeInfo();
+    $('exportHead').innerHTML = '<b>LACE PI Outcome Board</b><span>' + esc((S.settings.piName ? 'PI ' + S.settings.piName + ' · ' : '') + T.fmt(T.start) + ' ' + T.start.getFullYear() + ' – ' + T.fmt(T.end) + ' ' + T.end.getFullYear() + ' · stand ' + new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })) + '</span>';
+    document.body.classList.add('exporting');
+    drawDeps();
+    var frame = function () { return new Promise(function (r) { requestAnimationFrame(function () { r(); }); }); };
+    var svgEls = [], saved = [];
+    function done() {
+      svgEls.forEach(function (el, i) { if (saved[i] == null) el.removeAttribute('style'); else el.setAttribute('style', saved[i]); });
+      document.body.classList.remove('exporting'); drawDeps();
+    }
+    // Wacht tot drawDeps (requestAnimationFrame) de lijnen in de exportbreedte heeft getekend
+    return frame().then(frame).then(function () {
+      // SVG-lijnen krijgen hun kleur via CSS-variabelen; zet die tijdelijk inline, anders worden ze zwart in de export
+      svgEls = [].slice.call(node.querySelectorAll('svg path, svg line, svg circle, svg polyline, svg rect'));
+      saved = svgEls.map(function (el) {
+        var cs = getComputedStyle(el), old = el.getAttribute('style');
+        ['stroke', 'fill', 'stroke-width', 'stroke-dasharray', 'opacity', 'stroke-linecap'].forEach(function (k) { el.style.setProperty(k, cs.getPropertyValue(k)); });
+        return old;
+      });
+      var w = Math.max(node.scrollWidth, $('board').scrollWidth + 34), h = Math.ceil(node.getBoundingClientRect().height);
+      var ratio = Math.max(1, Math.min(2, 16000 / Math.max(w, h)));
+      var opts = {
+        width: w, height: h, pixelRatio: ratio, cacheBust: true,
+        backgroundColor: getComputedStyle(document.body).backgroundColor,
+        style: { width: w + 'px' },
+        // Mijlpaal-plusjes en knoppen horen niet in de export (de rest verbergt body.exporting in CSS)
+        filter: function (el) { return !(el.classList && (el.classList.contains('add') || el.classList.contains('minibtns') || el.classList.contains('qadd'))); }
+      };
+      return loadExportLib().then(function (lib) {
+        return lib.toPng(node, opts).catch(function () { return lib.toPng(node, Object.assign({}, opts, { skipFonts: true })); });
+      });
+    }).then(function (url) { done(); return url; }, function (e) { done(); throw e; });
+  }
+  function downloadUrl(url, name) {
+    var a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function printImage(url) {
+    var f = document.createElement('iframe');
+    f.setAttribute('aria-hidden', 'true'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(f);
+    var d = f.contentWindow.document;
+    d.open();
+    d.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(exportName('pdf').replace(/\.pdf$/, '')) + '</title><style>@page{size:landscape;margin:8mm}html,body{margin:0}img{display:block;max-width:100%;max-height:100vh;margin:0 auto;object-fit:contain}</style></head><body><img alt="LACE PI Outcome Board"></body></html>');
+    d.close();
+    var img = d.querySelector('img');
+    img.onload = function () { setTimeout(function () { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(function () { f.remove(); }, 1000); }, 50); };
+    img.src = url;
+  }
+  $('exportMenu').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-export]'); if (!b || !S.ready) return;
+    var kind = b.dataset.export; $('exportMenu').open = false;
+    toast(kind === 'pdf' ? 'PDF voorbereiden…' : 'Afbeelding maken…');
+    boardImage().then(function (url) {
+      if (kind === 'pdf') { printImage(url); toast('Kies ‘Opslaan als PDF’ in het afdrukvenster.'); }
+      else { downloadUrl(url, exportName('png')); toast('Afbeelding gedownload.'); }
+    }, function (err) { toast('Exporteren lukt niet: ' + (err && err.message || 'onbekende fout') + '.'); });
+  });
+  document.addEventListener('click', function (e) { var m = $('exportMenu'); if (m && m.open && !m.contains(e.target)) m.open = false; });
   $('ogsmBanner').addEventListener('click', function (e) {
     var b = e.target.closest('[data-ogact]'); if (!b) return;
     openDrawer({ kind: 's' }); var sec = $('ogSection'); if (sec) { sec.scrollIntoView({ block: 'start' }); var f = $('og-obj'); if (f && !f.value) f.focus(); }
