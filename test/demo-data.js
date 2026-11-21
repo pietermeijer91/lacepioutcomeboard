@@ -7,6 +7,9 @@
 (function () {
   window.LACE_DEMO = true;
   window.LACE_CONFIG = { supabaseUrl: 'https://demo.invalid', supabaseAnonKey: 'demo' };
+  // index.html?demo&login test het wachtwoordscherm (wachtwoord: LACE)
+  var withLogin = /[?&]login\b/.test(location.search);
+  if (withLogin) { window.LACE_CONFIG.boardEmail = 'demo@example.com'; window.LACE_CONFIG.passwordSuffix = '-bord'; }
 
   function iso(d) { return d.toISOString().slice(0, 10); }
   var today = new Date();
@@ -85,7 +88,13 @@
         from: query,
         channel: function () { var c = { on: function () { return c; }, subscribe: function (cb) { if (cb) setTimeout(function () { cb('SUBSCRIBED'); }, 0); return c; } }; return c; },
         removeAllChannels: function () {},
-        auth: {}
+        auth: {
+          getSession: function () { return Promise.resolve({ data: { session: withLogin ? null : { access_token: 'demo' } }, error: null }); },
+          signInWithPassword: function (c) {
+            var ok = c.password === 'LACE-bord';
+            return Promise.resolve(ok ? { data: { session: { access_token: 'demo' } }, error: null } : { data: {}, error: { message: 'Invalid login credentials' } });
+          }
+        }
       };
     }
   };

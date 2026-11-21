@@ -1400,9 +1400,41 @@
     g.innerHTML = '<div class="gate"><h1>Nog niet ingesteld</h1><p class="sub">Vul <code>config.js</code> met de URL en de anon key van je Supabase-project. Zie de README voor de stappen.</p></div>';
     return;
   }
-  S.sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
-  $('app').hidden = false;
-  renderLegend();
-  setView(location.hash.slice(1) || 'board', true);
-  subscribe();
+  S.sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'lace-bord-auth' } });
+
+  function openBoard(session) {
+    if (session && S.sb.realtime && S.sb.realtime.setAuth) S.sb.realtime.setAuth(session.access_token);
+    $('gate').hidden = true; $('gate').innerHTML = '';
+    $('app').hidden = false;
+    renderLegend();
+    setView(location.hash.slice(1) || 'board', true);
+    subscribe();
+  }
+  // Wachtwoord: één gedeeld Supabase-account (cfg.boardEmail). De data is alleen leesbaar voor ingelogde gebruikers (migratie 011).
+  function showLogin(msg) {
+    var g = $('gate'); g.hidden = false; $('app').hidden = true;
+    g.innerHTML = '<form class="gate" id="loginForm"><h1>LACE PI Outcome Board</h1><p class="sub">Vul het wachtwoord van het LACE-team in.</p>' +
+      '<label class="field">Wachtwoord<input type="password" id="loginPw" autocomplete="current-password" required></label>' +
+      '<p class="warn" id="loginMsg" role="alert"' + (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</p>' +
+      '<button class="btn primary" type="submit" id="loginBtn">Openen</button></form>';
+    $('loginPw').focus();
+    $('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var pw = $('loginPw').value, btn = $('loginBtn'), m = $('loginMsg');
+      btn.disabled = true; btn.textContent = 'Bezig…';
+      S.sb.auth.signInWithPassword({ email: cfg.boardEmail, password: pw + (cfg.passwordSuffix || '') }).then(function (res) {
+        if (res.error || !res.data || !res.data.session) {
+          btn.disabled = false; btn.textContent = 'Openen'; m.hidden = false;
+          m.textContent = res.error && /invalid/i.test(res.error.message || '') ? 'Wachtwoord klopt niet.' : 'Inloggen lukt niet: ' + ((res.error && res.error.message) || 'onbekende fout');
+          $('loginPw').select(); return;
+        }
+        openBoard(res.data.session);
+      });
+    });
+  }
+  if (!cfg.boardEmail) openBoard(null);
+  else S.sb.auth.getSession().then(function (res) {
+    var session = res && res.data && res.data.session;
+    if (session) openBoard(session); else showLogin();
+  }, function () { showLogin(); });
 })();

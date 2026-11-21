@@ -1,9 +1,8 @@
 -- LACE PI Outcome-bord — database-schema voor Supabase
 -- Uitvoeren in Supabase: SQL Editor > New query > plak dit bestand > Run.
 
--- Let op: het bord heeft geen login. Iedereen die de URL en de anon key kent
--- (die staan in config.js en dus in de pagina) kan het bord lezen en wijzigen.
--- Zet er dus geen vertrouwelijke informatie op.
+-- Toegang: het bord vraagt een teamwachtwoord en logt dan in met één gedeeld account
+-- (zie config.js en migrations/011_wachtwoord.sql). Alleen dat account kan lezen en schrijven.
 
 -- 1. Tabellen
 create table if not exists public.outcomes (
@@ -151,3 +150,16 @@ begin
   begin alter publication supabase_realtime add table public.ogsm; exception when duplicate_object then null; end;
 end $$;
 
+
+-- 6. Wachtwoord — zie migrations/011_wachtwoord.sql
+-- Alleen het gedeelde, ingelogde account mag lezen en schrijven (geen anon meer).
+do $$
+declare t text;
+begin
+  foreach t in array array['outcomes','milestones','settings','tasks','ogsm'] loop
+    execute format('revoke all on public.%I from anon', t);
+    execute format('drop policy if exists "open bord %s" on public.%I', t, t);
+    execute format('drop policy if exists "team %s" on public.%I', t, t);
+    execute format('create policy "team %s" on public.%I for all to authenticated using (true) with check (true)', t, t);
+  end loop;
+end $$;
