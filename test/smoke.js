@@ -29,6 +29,19 @@ const shot = process.argv.includes('--shot');
   }
   function assert(cond, msg) { if (!cond) throw new Error(msg); }
 
+  await check('wachtwoordscherm (demo&login)', async () => {
+    await page.goto(url + '&login');
+    await page.waitForSelector('#loginPw', { timeout: 5000 });
+    assert(await page.locator('#app').isHidden(), 'bord zichtbaar zonder wachtwoord');
+    await page.fill('#loginPw', 'lace');
+    await page.click('#loginBtn');
+    await page.waitForSelector('#loginMsg:not([hidden])', { timeout: 3000 });
+    assert((await page.locator('#loginMsg').innerText()).includes('klopt niet'), 'geen foutmelding bij verkeerd wachtwoord');
+    await page.fill('#loginPw', 'LACE');
+    await page.click('#loginBtn');
+    await page.waitForSelector('.row.focus', { timeout: 5000 });
+  });
+
   await page.goto(url);
   await page.waitForSelector('.row.focus', { timeout: 5000 });
 

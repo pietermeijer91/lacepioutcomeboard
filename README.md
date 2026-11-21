@@ -6,6 +6,10 @@ Een gedeeld bord waarop het LACE-team richting PI-outcomes plant en bijhoudt hoe
 - **Opslag en live updates:** [Supabase](https://supabase.com) (Postgres + Realtime).
 - **Geen login:** iedereen met de link kan het bord bekijken en wijzigen. Zet er dus geen vertrouwelijke informatie op, en deel de link alleen binnen het team. Wie wil, vult rechtsboven zijn naam in; die verschijnt dan bij “bijgewerkt door”.
 
+## Wachtwoord
+
+Het bord vraagt een teamwachtwoord. Daarmee logt het in met één gedeeld account in Supabase; zonder wachtwoord is de data ook via de API niet te lezen. Wachtwoord wijzigen: pas in Supabase (Authentication > Users) het wachtwoord van `lacebord@example.com` aan naar `<nieuw wachtwoord>1234`.
+
 ## Installeren
 
 ### 1. Supabase-project
