@@ -205,28 +205,6 @@
     var c = cis[cis.length - 1];
     return ' · <span class="conf c-' + confClass(c.confidence) + '" title="Vertrouwen: ' + esc(CONF[num(c.confidence)] || '') + '">Vertrouwen ' + num(c.confidence) + '/5</span>';
   }
-  function confBlock(o, T) {
-    var cis = checkinsOf(o), weeks = Math.max(1, num(S.settings.iterationWeeks) || 2);
-    if (!cis.length) return '<div class="confbox"><span class="meta">Nog geen check-in. Hoe zeker zijn we dat deze outcome gehaald wordt?</span></div>';
-    var c = cis[cis.length - 1], ago = daysSince(c.date), stale = ago != null && ago > weeks * 7 && T.nowIdx >= 0;
-    return '<div class="confbox"><div class="confrow"><span class="conf c-' + confClass(c.confidence) + '">Vertrouwen ' + num(c.confidence) + '/5</span>' + spark(cis) + '</div>' +
-      '<span class="meta">' + esc((CONF[num(c.confidence)] || '') + ' · ' + agoLabel(ago) + (c.by ? ' door ' + c.by : '')) + '</span>' +
-      (c.note ? '<span class="cinote">“' + esc(c.note) + '”</span>' : '') +
-      (stale ? '<span class="warn">Laatste check-in is ouder dan een iteratie</span>' : '') + '</div>';
-  }
-  function bvLine(o) {
-    var p = o.bvPlanned, a = o.bvActual;
-    if (p == null && a == null) return '';
-    return '<span class="meta">Business value: <b class="num">' + (p == null ? '–' : num(p)) + '</b> gepland · <b class="num">' + (a == null ? '–' : num(a)) + '</b> werkelijk</span>';
-  }
-  function learnLog(oms) {
-    var l = oms.filter(function (m) { return m.learning; });
-    if (!l.length) return '';
-    return '<details class="learn"><summary>Leerlog (' + l.length + ')</summary><ul>' + l.map(function (m) {
-      return '<li><b>' + esc(m.title || '') + '</b>' + (m.decision ? ' <span class="tag d-' + esc(m.decision) + '">' + DECISION[m.decision] + '</span>' : '') + '<span>' + esc(m.learning) + '</span></li>';
-    }).join('') + '</ul></details>';
-  }
-
   var OCHECK = [
     { k: 'invloed', q: 'Invloed', d: 'Ligt het binnen wat het LACE kan beïnvloeden, zonder te wachten op besluiten die we niet in handen hebben?' },
     { k: 'termijn', q: 'Termijn', d: 'Is er binnen deze PI een beweging te zien? Zo niet: kies een tussenstap.' },
@@ -316,14 +294,10 @@
       h += '<div class="row focus' + (sel ? ' sel' : '') + '">' +
         '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1 / span ' + n + '">' +
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
-        '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%</span>' +
-        (o.commitment === 'stretch' ? '<span class="tag">Stretch-outcome</span>' : '') + extraGoals(o) +
-        (o.hypothesis ? '<p class="hyp"><span class="lbl">Hypothese</span>' + esc(o.hypothesis) + '</p>' : '') +
-        '<ul class="krs">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li><span class="kt">' + hiNums(k.text) + (k.kind ? ' <span class="tag k-' + esc(k.kind) + '">' + KIND[k.kind] + '</span>' : '') + '</span><span class="kv"><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span><span class="num">' + esc(num(k.current) + u + ' / ' + num(k.target) + u) + '</span></span></li>'; }).join('') + (krs.length ? '' : '<li class="meta">Nog geen key results</li>') + '</ul>' +
-        (krs.length && krs.every(function (k) { return k.kind === 'lagging'; }) ? '<p class="warn">Alleen achterlopende indicatoren: waar stuur je tijdens de PI op?</p>' : '') +
-        confBlock(o, T) + bvLine(o) + learnLog(oms) +
-        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button><button type="button" class="mini" data-act="addmsout" data-id="' + esc(o.id) + '">+ Mijlpaal</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') +
-        (o.updatedAt ? '<span class="meta">' + esc(whoLabel(o)) + '</span>' : '') + '</div>';
+        // Compact: kerncijfers en key results op één regel; hypothese, check-ins, business value en leerlog staan in het zijpaneel
+        '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%' + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
+        (krs.length ? '<ul class="krs mini">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li title="' + esc(k.text) + '"><span class="kt">' + esc(k.text) + '</span><span class="num">' + esc(num(k.current) + u + '/' + num(k.target) + u) + '</span><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span></li>'; }).join('') + '</ul>' : '') +
+        (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button><button type="button" class="mini" data-act="addmsout" data-id="' + esc(o.id) + '">+ Mijlpaal</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') + '</div>';
 
       // Eén rij per outcome: alle mijlpalen per iteratie, zonder banen per bijdrage
       T.iters.forEach(function (nm, i) {
