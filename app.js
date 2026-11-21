@@ -129,7 +129,8 @@
     var T = timeInfo();
     var name = S.settings.piName ? S.settings.piName + ' · ' : '';
     $('eyebrow').textContent = 'PI-planning · ' + name + T.fmt(T.start) + ' ' + T.start.getFullYear() + ' – ' + T.fmt(T.end) + ' ' + T.end.getFullYear();
-    var outs = sortedOutcomes(), ms = msList();
+    // Alleen mijlpalen van outcomes op het bord tellen (niet van de parkeerplaats of de oude LACE-ritme-rij)
+    var outs = sortedOutcomes(), ms = msList().filter(function (m) { var o = S.outcomes[m.row]; return o && !o.parked; });
     var tot = outs.length ? Math.round(outs.reduce(function (a, o) { return a + outcomeStats(o, T, ms).pct; }, 0) / outs.length) : 0;
     $('tPct').textContent = tot + '%'; $('tFill').style.width = tot + '%'; $('tBar').setAttribute('aria-valuenow', tot);
     var done = ms.filter(function (m) { return m.status === 'done'; }).length;
