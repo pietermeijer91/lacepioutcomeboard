@@ -4,7 +4,7 @@
 --
 -- VOLGORDE:
 -- 1. Maak eerst het gedeelde account aan: Supabase > Authentication > Users > Add user > Create new user
---    E-mail: lacebord@example.com   Wachtwoord: LACE-bord   Vink "Auto Confirm User" aan.
+--    E-mail: lacebord@example.com   Wachtwoord: LACE1234   Vink "Auto Confirm User" aan.
 -- 2. Zorg dat de nieuwe versie van het bord live staat (met het wachtwoordscherm).
 -- 3. Draai dan dit script. Veilig om opnieuw te draaien.
 

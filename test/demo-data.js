@@ -9,7 +9,7 @@
   window.LACE_CONFIG = { supabaseUrl: 'https://demo.invalid', supabaseAnonKey: 'demo' };
   // index.html?demo&login test het wachtwoordscherm (wachtwoord: LACE)
   var withLogin = /[?&]login\b/.test(location.search);
-  if (withLogin) { window.LACE_CONFIG.boardEmail = 'demo@example.com'; window.LACE_CONFIG.passwordSuffix = '-bord'; }
+  if (withLogin) { window.LACE_CONFIG.boardEmail = 'demo@example.com'; window.LACE_CONFIG.passwordSuffix = '1234'; }
 
   function iso(d) { return d.toISOString().slice(0, 10); }
   var today = new Date();
@@ -91,7 +91,7 @@
         auth: {
           getSession: function () { return Promise.resolve({ data: { session: withLogin ? null : { access_token: 'demo' } }, error: null }); },
           signInWithPassword: function (c) {
-            var ok = c.password === 'LACE-bord';
+            var ok = c.password === 'LACE1234';
             return Promise.resolve(ok ? { data: { session: { access_token: 'demo' } }, error: null } : { data: {}, error: { message: 'Invalid login credentials' } });
           }
         }

@@ -8,7 +8,7 @@ Een gedeeld bord waarop het LACE-team richting PI-outcomes plant en bijhoudt hoe
 
 ## Wachtwoord
 
-Het bord vraagt een teamwachtwoord. Daarmee logt het in met één gedeeld account in Supabase; zonder wachtwoord is de data ook via de API niet te lezen. Wachtwoord wijzigen: pas in Supabase (Authentication > Users) het wachtwoord van `lacebord@example.com` aan naar `<nieuw wachtwoord>-bord`.
+Het bord vraagt een teamwachtwoord. Daarmee logt het in met één gedeeld account in Supabase; zonder wachtwoord is de data ook via de API niet te lezen. Wachtwoord wijzigen: pas in Supabase (Authentication > Users) het wachtwoord van `lacebord@example.com` aan naar `<nieuw wachtwoord>1234`.
 
 ## Installeren
 

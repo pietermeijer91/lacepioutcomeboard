@@ -7,5 +7,5 @@ window.LACE_CONFIG = {
   // Wachtwoord: het bord logt in met dit gedeelde account (aanmaken in Supabase > Authentication > Users).
   // Het accountwachtwoord is het teamwachtwoord + passwordSuffix (Supabase eist minimaal 6 tekens).
   boardEmail: 'lacebord@example.com',
-  passwordSuffix: '-bord'
+  passwordSuffix: '1234'
 };
