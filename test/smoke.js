@@ -71,6 +71,11 @@ const shot = process.argv.includes('--shot');
     await page.click('.dhead [data-d="close"]');
   });
 
+  await check('geen bijdragen-banen op het bord', async () => {
+    assert(await page.locator('#board .lane').count() === 0, 'bijdragen staan nog op het bord');
+    assert(!(await page.locator('#board .row.head').innerText()).includes('Bijdragen'), 'kolom Bijdragen staat nog in de kop');
+  });
+
   await check('outcome-check: niet op het bord, wel inklapbaar in zijpaneel', async () => {
     assert(await page.locator('#board .ochk').count() === 0, 'check-labels staan nog op het bord');
     await page.click('button[data-act="edit"][data-id="o3"]');
@@ -94,13 +99,13 @@ const shot = process.argv.includes('--shot');
   await check('mijlpaal snel toevoegen in een iteratie', async () => {
     await page.click('button[data-act="focus"][data-id="o1"]').catch(() => {});
     const before = await page.locator('#board [data-act="ms"]').count();
-    await page.click('.cell[data-drop-row="o1"][data-drop-contrib="c1"][data-drop-iter="4"] [data-act="addms"]');
+    await page.click('.cell[data-drop-row="o1"][data-drop-iter="4"] [data-act="addms"]');
     await page.fill('#qaddInput', 'Snelle mijlpaal');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(100);
     assert(await page.locator('#board [data-act="ms"]').count() === before + 1, 'mijlpaal niet toegevoegd');
-    assert(await page.locator('.cell[data-drop-row="o1"][data-drop-contrib="c1"][data-drop-iter="4"] .callout', { hasText: 'Snelle mijlpaal' }).count() === 1, 'mijlpaal staat niet in de juiste cel');
-    await page.click('.cell[data-drop-row="o1"][data-drop-contrib="c1"][data-drop-iter="2"] [data-act="addms"]');
+    assert(await page.locator('.cell[data-drop-row="o1"][data-drop-iter="4"] .callout', { hasText: 'Snelle mijlpaal' }).count() === 1, 'mijlpaal staat niet in de juiste cel');
+    await page.click('.cell[data-drop-row="o1"][data-drop-iter="2"] [data-act="addms"]');
     await page.keyboard.press('Escape');
     assert(await page.locator('#qaddInput').count() === 0, 'annuleren werkt niet');
   });
@@ -173,14 +178,14 @@ const shot = process.argv.includes('--shot');
   await check('mijlpaal verslepen', async () => {
     await page.click('button[data-act="focus"][data-id="o1"]').catch(() => {});
     const card = await page.locator('button.callout[data-id="m4"]').boundingBox();
-    const target = await page.locator('[data-drop-row="o1"][data-drop-contrib="c2"][data-drop-iter="3"]').boundingBox();
+    const target = await page.locator('[data-drop-row="o1"][data-drop-iter="3"]').boundingBox();
     await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
     await page.mouse.down();
     await page.mouse.move(card.x + card.width / 2 + 20, card.y + card.height / 2 + 10, { steps: 3 });
     await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 10 });
     await page.mouse.up();
     await page.waitForTimeout(200);
-    assert(await page.locator('[data-drop-row="o1"][data-drop-contrib="c2"][data-drop-iter="3"] button.callout[data-id="m4"]').count() === 1, 'kaartje niet verplaatst');
+    assert(await page.locator('[data-drop-row="o1"][data-drop-iter="3"] button.callout[data-id="m4"]').count() === 1, 'kaartje niet verplaatst');
     assert(await page.locator('#drawerRoot aside').count() === 0, 'zijpaneel opende na slepen');
   });
 

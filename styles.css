@@ -76,7 +76,7 @@ h1{margin:4px 0 4px;font-size:32px;line-height:1.15;font-weight:700}
 
 .boardbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
 .board{min-width:calc(780px + var(--cols,6) * 125px)}
-.row{display:grid;grid-template-columns:minmax(240px,300px) minmax(180px,230px) repeat(var(--cols,6),minmax(120px,1fr));border-bottom:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(240px,300px) repeat(var(--cols,6),minmax(120px,1fr));border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
 .row.head{background:var(--head);color:var(--head-ink);border-bottom:0}
 .row.head>div{padding:12px 14px;font-weight:600}
@@ -171,11 +171,6 @@ footer.legend span{display:inline-flex;align-items:center;gap:6px}
 .hint{margin:0;font-size:13px;color:var(--muted);max-width:72ch}
 
 .row .ocell{align-self:stretch}
-.lane{border-left:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:2px;min-width:0;justify-content:center}
-.lane b{font-size:13px}
-.lane span{font-size:12px;color:var(--muted);line-height:1.4}
-.lane.whole b{color:var(--muted);font-weight:600}
-.row.focus .lane.l:not(.first),.row.focus .cell.l:not(.first){border-top:1px dashed var(--line)}
 .row.focus{background:var(--surface)}
 .row.focus .ocell{background:var(--surface-2);border-right:0}
 .row.compact .ocell{padding:12px 16px;gap:8px}

@@ -190,7 +190,7 @@
   }
   function cell(i, r, T, inner, extra, drop) {
     var cls = 'cell' + (i === T.nowIdx ? ' now' : '') + (i === T.todayIdx ? ' today' : '') + (extra ? ' ' + extra : '');
-    var st = 'grid-column:' + (i + 3) + ';grid-row:' + r + (i === T.todayIdx ? ';--tpos:' + T.tpos + '%' : '');
+    var st = 'grid-column:' + (i + 2) + ';grid-row:' + r + (i === T.todayIdx ? ';--tpos:' + T.tpos + '%' : '');
     var dz = drop ? ' data-drop-row="' + esc(drop.row) + '" data-drop-contrib="' + esc(drop.contrib) + '" data-drop-iter="' + i + '"' : '';
     return '<div class="' + cls + '" style="' + st + '"' + dz + '>' + inner + '</div>';
   }
@@ -286,38 +286,32 @@
   function renderBoard() {
     if (!S.ready) { $('board').innerHTML = '<div class="empty">Bord laden…</div>'; return; }
     var T = timeInfo(), ms = msList(), outs = sortedOutcomes(), fid = focusId(outs);
-    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="cgroup head"><div class="ogh">CIO Office-doel</div><div class="ogrows"><div class="row head"><div>PI-outcome</div><div>Bijdragen</div>' + T.iters.map(function (it, i) {
+    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="cgroup head"><div class="ogh">CIO Office-doel</div><div class="ogrows"><div class="row head"><div>PI-outcome</div>' + T.iters.map(function (it, i) {
       return '<div class="it' + (i === T.nowIdx ? ' now' : '') + '">' + esc(it.name) + (i === T.nowIdx ? '<span class="nowpill">Nu</span>' : '') + '<span class="dates">' + esc(it.dates) + '</span></div>';
     }).join('') + '</div></div></div></div></div>';
 
-    if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je bijdragen, key results en mijlpalen per iteratie toevoegen.</div>';
+    if (!outs.length) h += '<div class="empty"><b>Nog geen PI-outcomes.</b> Voeg de eerste toe met “+ PI-outcome”. Daarna kun je key results en mijlpalen per iteratie toevoegen.</div>';
 
     function outcomeRow(o) {
       var h = '';
       var st = outcomeStats(o, T, ms);
       var expanded = S.expandAll || o.id === fid;
-      var krs = Array.isArray(o.krs) ? o.krs : [], cs = Array.isArray(o.contribs) ? o.contribs : [];
+      var krs = Array.isArray(o.krs) ? o.krs : [];
       var oms = ms.filter(function (m) { return m.row === o.id; });
       var sel = S.sel && S.sel.kind === 'o' && S.sel.id === o.id;
       var bar = '';
 
       if (!expanded) {
-        var owners = cs.map(function (c) { return c.owner; }).filter(Boolean);
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
           '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
           '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
-          '<div class="lane" style="grid-column:2;grid-row:1"><span>' + (owners.length ? esc(owners.join(', ')) : 'Nog geen bijdragen') + '</span></div>' +
           T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
           '</div>';
         return h;
       }
 
-      var ids = {}; cs.forEach(function (c) { ids[c.id] = 1; });
-      var lanes = cs.map(function (c) { return { id: c.id, owner: c.owner, text: c.text }; });
-      var loose = oms.filter(function (m) { return !ids[m.contrib]; });
-      if (!lanes.length || loose.length) lanes.push({ id: '', owner: lanes.length ? 'Hele outcome' : 'Mijlpalen', text: lanes.length ? 'Niet aan één bijdrage gekoppeld' : 'Voeg bijdragen toe om banen per persoon of team te krijgen', whole: true });
-      var n = lanes.length;
+      var n = 1;
 
       h += '<div class="row focus' + (sel ? ' sel' : '') + '">' +
         '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1 / span ' + n + '">' +
@@ -331,13 +325,9 @@
         (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Outcome bewerken</button><button type="button" class="mini" data-act="addmsout" data-id="' + esc(o.id) + '">+ Mijlpaal</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') +
         (o.updatedAt ? '<span class="meta">' + esc(whoLabel(o)) + '</span>' : '') + '</div>';
 
-      lanes.forEach(function (ln, idx) {
-        var r = idx + 1, first = idx === 0 ? ' first' : '';
-        var lms = ln.whole ? loose : oms.filter(function (m) { return m.contrib === ln.id; });
-        h += '<div class="lane l' + first + (ln.whole ? ' whole' : '') + '" style="grid-column:2;grid-row:' + r + '"><b>' + esc(ln.owner || '–') + '</b>' + (ln.text ? '<span>' + esc(ln.text) + '</span>' : '') + '</div>';
-        T.iters.forEach(function (nm, i) {
-          h += cell(i, r, T, lms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ln.id), 'l' + first, { row: o.id, contrib: ln.id });
-        });
+      // Eén rij per outcome: alle mijlpalen per iteratie, zonder banen per bijdrage
+      T.iters.forEach(function (nm, i) {
+        h += cell(i, 1, T, oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ''), 'l first', { row: o.id, contrib: '*' });
       });
       h += '</div>';
       return h;
@@ -767,7 +757,6 @@
         '<div class="two"><label class="field">Soort<select id="m-type" data-f="type"' + ro + '>' + Object.keys(TYPES).map(function (k) { return opt(k, TYPES[k].l, m.type); }).join('') + '</select></label>' +
         '<label class="field">Status<select id="m-status" data-f="status"' + ro + '>' + Object.keys(STATUS).map(function (k) { return opt(k, STATUS[k], m.status || 'planned'); }).join('') + '</select></label>' +
         '<label class="field">Hoort bij<select id="m-row" data-f="row"' + ro + '>' + (m.row === 'art' ? opt('art', 'LACE-ritme (niet meer op het bord)', m.row) : '') + sortedOutcomes().map(function (o) { return opt(o.id, o.title || '(zonder titel)', m.row); }).join('') + '</select></label>' +
-        '<label class="field">Bijdrage (baan)<select id="m-contrib" data-f="contrib"' + (S.readOnly || m.row === 'art' ? ' disabled' : '') + '>' + contribOptions(m.row, m.contrib) + '</select></label>' +
         '<label class="field">Iteratie<select id="m-iter" data-f="iter"' + ro + '>' + iterNames().map(function (n, i) { return opt(i, n, iterOf(m)); }).join('') + '</select></label></div>' +
         '<div class="sec"><h3>Leerpunt</h3><p class="note">Vooral bij leermijlpalen: wat hebben we geleerd, en wat doen we ermee?</p>' +
         '<label class="field">Wat hebben we geleerd?<textarea class="prose" id="m-learning" data-f="learning" rows="3" placeholder="bijv. teams gebruiken het dashboard alleen als het in hun sync zit"' + ro + '>' + esc(m.learning || '') + '</textarea></label>' +
@@ -813,8 +802,6 @@
           }).join('') + '</details>' +
         '<div class="sec"><h3>Key results</h3><div style="overflow-x:auto"><div class="grid krgrid"><span class="h">Wat meten we</span><span class="h">Soort</span><span class="h">Start</span><span class="h">Doel</span><span class="h">Nu</span><span class="h unit">Eenheid</span><span></span></div><div id="krList" class="sec"></div></div>' +
         (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addkr" style="align-self:flex-start">+ Key result</button>') + '</div>' +
-        '<div class="sec"><h3>Bijdragen (wie doet wat)</h3><div id="cList" class="sec"></div>' +
-        (S.readOnly ? '' : '<button class="btn ghost" type="button" data-d="addc" style="align-self:flex-start">+ Bijdrage</button>') + '</div>' +
         '<div class="sec"><h3>Check-ins</h3><p class="note">Elke iteratie: hoe zeker zijn we dat deze outcome gehaald wordt, en wat zien we?</p>' +
         (S.readOnly ? '' : '<div class="cigrid"><label class="field">Vertrouwen<select id="ci-conf">' + [5, 4, 3, 2, 1].map(function (n) { return opt(n, n + ' – ' + CONF[n], 3); }).join('') + '</select></label>' +
         '<label class="field">Toelichting<input id="ci-note" type="text" placeholder="Wat zien we, wat zit tegen?"></label>' +
