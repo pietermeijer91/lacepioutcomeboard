@@ -175,11 +175,6 @@
     var d = tk.filter(function (t) { return t.status === 'done'; }).length;
     return '<span class="ctasks' + (d === tk.length ? ' all' : '') + '">' + d + '/' + tk.length + ' taken</span>';
   }
-  function msDot(m, T) {
-    var t = TYPES[m.type] || TYPES.learn, s = msState(m, T);
-    var title = m.title || '(zonder titel)';
-    return '<button type="button" class="mdot s-' + s.cls + '" style="--mc:var(' + t.v + ')" data-act="ms" data-id="' + esc(m.id) + '" title="' + esc(title + ' · ' + t.l + ' · ' + s.label) + '" aria-label="' + esc(t.l + ' mijlpaal: ' + title + ', ' + s.label) + '"><span class="dia-s" aria-hidden="true"></span></button>';
-  }
   function addBtn(row, i, contrib) {
     if (S.readOnly) return '';
     var q = S.quick;
@@ -284,7 +279,8 @@
           '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
           '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
-          T.iters.map(function (n, i) { return cell(i, 1, T, '<div class="dots">' + oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msDot(m, T); }).join('') + '</div>', '', { row: o.id, contrib: '*' }); }).join('') +
+          // Mijlpalen altijd als kaartje met tekst, ook als de outcome is ingeklapt
+          T.iters.map(function (n, i) { return cell(i, 1, T, oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ''), 'l first', { row: o.id, contrib: '*' }); }).join('') +
           '</div>';
         return h;
       }
