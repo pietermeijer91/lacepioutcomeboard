@@ -107,6 +107,12 @@ const shot = process.argv.includes('--shot');
     await page.waitForSelector('.toast:has-text("Opslaan als PDF")', { timeout: 20000 });
   });
 
+  await check('mijlpalen ook bij ingeklapte outcome als kaartje met tekst', async () => {
+    assert(await page.locator('#board .mdot').count() === 0, 'er staan nog losse ruitjes zonder tekst');
+    const compact = page.locator('.row.compact').filter({ hasText: 'PI Planning in één dag' });
+    assert((await compact.locator('.callout').first().innerText()).includes('Draaiboek'), 'titel van mijlpaal niet zichtbaar in ingeklapte rij');
+  });
+
   await check('geen bijdragen-banen op het bord', async () => {
     assert(await page.locator('#board .lane').count() === 0, 'bijdragen staan nog op het bord');
     assert(!(await page.locator('#board .row.head').innerText()).includes('Bijdragen'), 'kolom Bijdragen staat nog in de kop');

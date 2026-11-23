@@ -539,3 +539,6 @@ body.exporting .boardbox{overflow:visible;width:max-content;min-width:100%}
 body.exporting #viewBoard{width:max-content;min-width:100%}
 body.exporting #viewBoard{padding:16px}
 body.exporting #parking,body.exporting .hint,body.exporting .addrow,body.exporting .toolbar .actions,body.exporting [data-ogact]{display:none}
+/* '+ mijlpaal' alleen tonen bij aanwijzen van de rij (op touch altijd zichtbaar) */
+@media (hover:hover){ .row .add{opacity:0;transition:opacity .15s} .row:hover .add,.row .add:focus-visible{opacity:1} }
+.export>summary.btn{display:inline-flex;align-items:center}
