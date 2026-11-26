@@ -20,8 +20,8 @@
     settings: [{ id: 'pi', pi_start: iso(start), iteration_weeks: 2, pi_name: 'Demo-PI', iteration_count: 5, ip_iteration: false, next_pi_name: '27.1' }],
     ogsm: [
       { id: 'objective', kind: 'objective', title: 'Voorbeeld-ambitie: wendbaar en datagedreven bijdragen aan de energietransitie', sort_order: 0 },
-      { id: 'g1', kind: 'goal', code: 'G1', title: 'Voorspelbaar leveren', strategy: 'Sturen op flow en outcomes', measure: 'Predictability ≥ 80%', color: 1, sort_order: 1 },
-      { id: 'c1', kind: 'cio', code: 'C1', title: 'Datagedreven sturen', measure: 'Dashboards in elke teamsync', color: 4, sort_order: 1 },
+      { id: 'g1', kind: 'goal', code: 'G1', title: 'Voorspelbaar leveren', strategy: 'Sturen op flow en outcomes', measure: 'Predictability ≥ 80%', owner: 'Voorbeeld D', color: 1, sort_order: 1 },
+      { id: 'c1', kind: 'cio', code: 'C1', title: 'Datagedreven sturen', measure: 'Dashboards in elke teamsync', owner: 'Voorbeeld A', color: 4, sort_order: 1 },
       { id: 'c2', kind: 'cio', code: 'C2', title: 'Wendbare portfolio', measure: '', color: 5, sort_order: 2 },
       { id: 'g2', kind: 'goal', code: 'G2', title: 'Wendbare organisatie', strategy: 'AI-native werken', measure: '3 teams werken AI-native', color: 2, sort_order: 2 }
     ],

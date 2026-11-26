@@ -255,6 +255,8 @@
     el.innerHTML = h;
   }
 
+  function ownerChip(g) { return g && g.owner ? '<span class="ogowner" title="Eigenaar: ' + esc(g.owner) + '"><span class="ini" aria-hidden="true">' + esc(initials(g.owner)) + '</span>' + esc(String(g.owner).trim().split(/\s+/)[0]) + '</span>' : ''; } // voornaam zichtbaar, volledige naam bij aanwijzen
+  function initials(n) { return String(n).trim().split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
   function renderBoard() {
     if (!S.ready) { $('board').innerHTML = '<div class="empty">Bord laden…</div>'; return; }
     var T = timeInfo(), ms = msList(), outs = sortedOutcomes(), fid = focusId(outs);
@@ -306,7 +308,7 @@
       var stats = g.outs.map(function (o) { return outcomeStats(o, T, ms).pct; });
       var avg = stats.length ? Math.round(stats.reduce(function (a2, b2) { return a2 + b2; }, 0) / stats.length) : 0;
       var left = g.goal
-        ? '<div class="ogcell ogc-' + ogColor(g.goal) + '" data-og="' + esc(g.goal.id) + '"><span class="ogcode">' + esc(g.goal.code || 'Doel') + '</span><b>' + esc(g.goal.title || '(zonder titel)') + '</b>' +
+        ? '<div class="ogcell ogc-' + ogColor(g.goal) + '" data-og="' + esc(g.goal.id) + '"><div class="oghead"><span class="ogcode">' + esc(g.goal.code || 'Doel') + '</span>' + ownerChip(g.goal) + '</div><b>' + esc(g.goal.title || '(zonder titel)') + '</b>' +
           (g.goal.strategy ? '<span class="ogsub"><i>Strategie</i>' + esc(g.goal.strategy) + '</span>' : '') +
           (g.goal.measure ? '<span class="ogsub"><i>Meetwaarde</i>' + esc(g.goal.measure) + '</span>' : '') +
           '<span class="ogstat">' + g.outs.length + (g.outs.length === 1 ? ' outcome' : ' outcomes') + ' · ' + avg + '%</span>' +
@@ -314,7 +316,7 @@
         : '<div class="ogcell ogc-none" data-og="_none"><b>Nog niet gekoppeld</b><span class="ogsub">Aan welk OGSM-doel draagt dit bij? Kies het bij Bewerken.</span></div>';
       var subs = cioGroups(g.outs).map(function (c) {
         var cl = c.cio
-          ? '<div class="ogcell ciocell ogc-' + ogColor(c.cio) + '" data-cio="' + esc(c.cio.id) + '"><span class="ogcode">' + esc(c.cio.code || 'CIO') + '</span><b>' + esc(c.cio.title || '(zonder titel)') + '</b>' +
+          ? '<div class="ogcell ciocell ogc-' + ogColor(c.cio) + '" data-cio="' + esc(c.cio.id) + '"><div class="oghead"><span class="ogcode">' + esc(c.cio.code || 'CIO') + '</span>' + ownerChip(c.cio) + '</div><b>' + esc(c.cio.title || '(zonder titel)') + '</b>' +
             (c.cio.measure ? '<span class="ogsub">' + esc(c.cio.measure) + '</span>' : '') + '<span class="ogstat">' + c.outs.length + (c.outs.length === 1 ? ' outcome' : ' outcomes') + '</span></div>'
           : '<div class="ogcell ciocell cio-skip" data-cio="_none" aria-hidden="true"></div>'; // CIO Office-doel is optioneel: de outcome hangt dan direct aan het OGSM-doel
         return '<div class="cgroup">' + cl + '<div class="ogrows">' + c.outs.map(outcomeRow).join('') + '</div></div>';
@@ -342,6 +344,12 @@
     return depsOf(m).map(function (id) { return S.milestones[id] ? Object.assign({ id: id }, S.milestones[id]) : null; }).filter(function (p) { return p && depConflict(m, p); });
   }
   var depRaf = null;
+  // Vaste 'willekeur' per lijn (zelfde id = zelfde vorm), zodat lijnen speels verschillen maar niet verspringen bij elke update
+  function seeded(str) {
+    var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return function () { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 10000) / 10000; };
+  }
+  function f1(n) { return n.toFixed(1); }
   function drawDeps() {
     if (depRaf) cancelAnimationFrame(depRaf);
     depRaf = requestAnimationFrame(function () {
@@ -361,18 +369,23 @@
         var sx = r0.right - br0.left - 10, cls = gid === '_none' ? 'ogl none' : 'ogl ogc-' + (S.ogsm[gid] ? ogColor(S.ogsm[gid]) : 1);
         rows.forEach(function (oc) {
           var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + (oc.dataset.cio ? 28 : 24);
-          var d;
+          var d, rnd = seeded(gid + '>' + (oc.dataset.cio || oc.dataset.oid)), sw = 1.5 + rnd() * 1.1;
           if (isOg && oc.dataset.oid && Math.abs(ty - sy) > 12) {
-            // Direct van OGSM-doel naar outcome: omlaag langs de rand van de OGSM-kolom, dan rechtdoor door de lege CIO-cel, zodat de lijn niet over tekst loopt
-            // Ruime bochten: boven een zachte bocht omlaag, onder een brede bocht naar rechts
+            // Direct van OGSM-doel naar outcome: omlaag langs de rand van de OGSM-kolom (licht golvend), dan in een ruime boog door de lege CIO-cel, zodat de lijn niet over tekst loopt
             var vx = r0.right - br0.left + 6, span = Math.abs(ty - sy), dn = ty > sy ? 1 : -1;
-            var r1 = Math.min(36, span / 2), r2 = Math.min(64, span / 2, Math.max(0, tx - vx - 8));
-            d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + vx.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + vx.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + vx.toFixed(1) + ' ' + (sy + dn * r1).toFixed(1) +
-              ' V' + (ty - dn * r2).toFixed(1) + ' C' + vx.toFixed(1) + ' ' + (ty - dn * r2 * 0.25).toFixed(1) + ' ' + (vx + r2 * 0.25).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + (vx + r2).toFixed(1) + ' ' + ty.toFixed(1) + ' H' + tx.toFixed(1);
+            var ra = Math.min(30 + rnd() * 14, span / 3), rb = Math.min(48 + rnd() * 40, span / 2, Math.max(0, tx - vx - 8)), wob = (rnd() < 0.5 ? -1 : 1) * (2 + rnd() * 3);
+            var y1 = sy + dn * ra, y2 = ty - dn * rb, ym = (y1 + y2) / 2;
+            d = 'M' + f1(sx) + ' ' + f1(sy) + ' C' + f1(vx) + ' ' + f1(sy) + ' ' + f1(vx) + ' ' + f1(sy) + ' ' + f1(vx) + ' ' + f1(y1) +
+              ' C' + f1(vx + wob) + ' ' + f1(y1 + (ym - y1) * 0.6) + ' ' + f1(vx + wob) + ' ' + f1(ym) + ' ' + f1(vx) + ' ' + f1(ym) +
+              ' S' + f1(vx) + ' ' + f1(y2) + ' ' + f1(vx) + ' ' + f1(y2) +
+              ' C' + f1(vx) + ' ' + f1(ty - dn * rb * (0.1 + rnd() * 0.3)) + ' ' + f1(vx + rb * (0.1 + rnd() * 0.3)) + ' ' + f1(ty) + ' ' + f1(vx + rb) + ' ' + f1(ty) +
+              ' Q' + f1((vx + rb + tx) / 2) + ' ' + f1(ty + (rnd() - 0.5) * 8) + ' ' + f1(tx) + ' ' + f1(ty);
           } else {
-            d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1);
+            // Speelse S-bocht: horizontaal weinig uitslag (blijft in de tussenruimte), verticaal steeds een andere vorm
+            var vs = ty - sy, k1 = 6 + rnd() * 14, k2 = 6 + rnd() * 14;
+            d = 'M' + f1(sx) + ' ' + f1(sy) + ' C' + f1(sx + k1) + ' ' + f1(sy + vs * (0.15 + rnd() * 0.5)) + ' ' + f1(tx - k2) + ' ' + f1(ty - vs * (0.15 + rnd() * 0.5)) + ' ' + f1(tx) + ' ' + f1(ty);
           }
-          og += '<path class="' + cls + '" d="' + d + '"></path>' +
+          og += '<path class="' + cls + '" style="stroke-width:' + sw.toFixed(2) + '" d="' + d + '"></path>' +
             '<circle class="' + cls + ' dot" cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="3"></circle>';
         });
         if (rows.length) og += '<circle class="' + cls + ' dot" cx="' + sx.toFixed(1) + '" cy="' + (Math.min(r0.top + 28, r0.bottom - 16) - br0.top).toFixed(1) + '" r="3.5"></circle>';
@@ -385,8 +398,9 @@
         depsOf(m).forEach(function (pid) {
           var a = box(pid), b = box(m.id); if (!a || !b) return;
           var pre = Object.assign({ id: pid }, S.milestones[pid]), bad = depConflict(m, pre);
-          var sx = a.r, sy = a.cy, tx = b.l - 3, ty = b.cy, dx = Math.max(40, Math.abs(tx - sx) / 2);
-          var d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + dx).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - dx).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1);
+          var rd = seeded(pid + '>' + m.id), bend = (rd() - 0.5) * 36;
+          var sx = a.r, sy = a.cy, tx = b.l - 3, ty = b.cy, dx = Math.max(40, Math.abs(tx - sx) / 2) * (0.6 + rd() * 0.8);
+          var d = 'M' + f1(sx) + ' ' + f1(sy) + ' C' + f1(sx + dx) + ' ' + f1(sy + bend) + ' ' + f1(tx - dx) + ' ' + f1(ty - bend * 0.6) + ' ' + f1(tx) + ' ' + f1(ty);
           var cls = 'dep' + (bad ? ' bad' : '') + (focusId ? (focusId === m.id || focusId === pid ? ' hl' : ' dim') : '');
           out += '<path class="' + cls + '" d="' + d + '" marker-end="url(#' + (bad ? 'dep-b' : 'dep-a') + ')" data-from="' + esc(pid) + '" data-to="' + esc(m.id) + '"></path>';
         });
@@ -413,6 +427,7 @@
       var e = res.error;
       if (/checks/.test(e.message || '')) { toast('De outcome-check is nog niet geactiveerd. Voer supabase/migrations/008_outcome_check.sql uit in Supabase.'); return; }
       if (/parked|next_pi_name/.test(e.message || '')) { toast('De parkeerplaats is nog niet geactiveerd. Voer supabase/migrations/010_parkeerplaats.sql uit in Supabase.'); return; }
+      if (/owner/.test(e.message || '') && /ogsm/.test(e.message || '')) { toast('Eigenaar bij doelen is nog niet geactiveerd. Voer supabase/migrations/012_ogsm_eigenaar.sql uit in Supabase.'); return; }
       if (/cio_ref|ogsm_kind_check/.test(e.message || '')) { toast('De CIO Office-kolom is nog niet geactiveerd. Voer supabase/migrations/009_cio_office.sql uit in Supabase.'); return; }
       if (/ogsm/.test(e.message || '')) { toast('OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.'); return; }
       if (/depends_on/.test(e.message || '')) { toast('Afhankelijkheden zijn nog niet geactiveerd. Voer supabase/migrations/006_afhankelijkheden.sql uit in Supabase.'); return; }
@@ -780,7 +795,8 @@
         '<select aria-label="Kleur" data-g="' + id + '" data-gf="color"' + ro + '>' + Object.keys(OG_COLORS).map(function (k) { return opt(k, OG_COLORS[k], ogColor(g)); }).join('') + '</select>' +
         (S.readOnly ? '' : '<span data-delzone="' + id + '"><button type="button" class="x" aria-label="Doel verwijderen" data-d="delgoal" data-id="' + id + '">' + X_ICON + '</button></span>') + '</div>' +
         (isCio ? '' : '<input type="text" aria-label="Strategie" placeholder="Strategie (S)" data-g="' + id + '" data-gf="strategy" value="' + esc(g.strategy || '') + '"' + ro + '>') +
-        '<input type="text" aria-label="' + (isCio ? 'Toelichting' : 'Meetwaarde') + '" placeholder="' + (isCio ? 'Toelichting of meetwaarde (optioneel)' : 'Meetwaarde (M), bijv. KPI en doelwaarde') + '" data-g="' + id + '" data-gf="measure" value="' + esc(g.measure || '') + '"' + ro + '></div>';
+        '<input type="text" aria-label="' + (isCio ? 'Toelichting' : 'Meetwaarde') + '" placeholder="' + (isCio ? 'Toelichting of meetwaarde (optioneel)' : 'Meetwaarde (M), bijv. KPI en doelwaarde') + '" data-g="' + id + '" data-gf="measure" value="' + esc(g.measure || '') + '"' + ro + '>' +
+        '<input type="text" aria-label="Eigenaar" placeholder="Eigenaar (wie trekt dit?)" data-g="' + id + '" data-gf="owner" value="' + esc(g.owner || '') + '"' + ro + '></div>';
     }).join('') || '<p class="note">Nog geen doelen.</p>';
     if (keep) { var n = el.querySelector('[data-g="' + keep[0] + '"][data-gf="' + keep[1] + '"]'); if (n) n.focus(); }
   }
