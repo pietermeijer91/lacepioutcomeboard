@@ -115,6 +115,26 @@ const shot = process.argv.includes('--shot');
     assert((await compact.locator('.callout').first().innerText()).includes('Draaiboek'), 'titel van mijlpaal niet zichtbaar in ingeklapte rij');
   });
 
+  await check('eigenaar rechtsboven bij OGSM- en CIO Office-doel', async () => {
+    assert((await page.locator('.ogcell[data-og="g1"] .ogowner').innerText()).includes('Voorbeeld'), 'eigenaar OGSM-doel ontbreekt');
+    assert((await page.locator('.ciocell[data-cio="c1"] .ogowner').getAttribute('title')).includes('Voorbeeld A'), 'eigenaar CIO-doel ontbreekt');
+    await page.click('#ogsmBanner [data-ogact="manage"]');
+    await page.fill('#cioList [data-g="c2"][data-gf="owner"]', 'Voorbeeld E');
+    await page.waitForTimeout(600);
+    await page.click('.dhead [data-d="close"]');
+    assert((await page.locator('.ciocell[data-cio="c2"] .ogowner').getAttribute('title')).includes('Voorbeeld E'), 'nieuwe eigenaar niet zichtbaar op het bord');
+  });
+
+  await check('lijnen: speels en per lijn verschillend, maar stabiel', async () => {
+    await page.waitForTimeout(150);
+    const ds = await page.locator('#ogLines path.ogl').evaluateAll((els) => els.map((e) => e.getAttribute('style')));
+    assert(new Set(ds).size > 1, 'alle lijnen zijn even dik: ' + JSON.stringify(ds));
+    const before = await page.locator('#ogLines path.ogl').first().getAttribute('d');
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    await page.waitForTimeout(150);
+    assert((await page.locator('#ogLines path.ogl').first().getAttribute('d')) === before, 'lijn verspringt bij opnieuw tekenen');
+  });
+
   await check('geen bijdragen-banen op het bord', async () => {
     assert(await page.locator('#board .lane').count() === 0, 'bijdragen staan nog op het bord');
     assert(!(await page.locator('#board .row.head').innerText()).includes('Bijdragen'), 'kolom Bijdragen staat nog in de kop');

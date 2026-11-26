@@ -133,6 +133,7 @@ create table if not exists public.ogsm (
   title       text not null default '',
   strategy    text not null default '',
   measure     text not null default '',
+  owner       text not null default '',   -- eigenaar, rechtsboven in het doel (migrations/012)
   color       integer not null default 1 check (color between 1 and 6),
   sort_order  double precision not null default 0,
   created_at  timestamptz not null default now(),
