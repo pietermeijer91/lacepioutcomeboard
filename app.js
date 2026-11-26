@@ -361,7 +361,16 @@
         var sx = r0.right - br0.left - 10, cls = gid === '_none' ? 'ogl none' : 'ogl ogc-' + (S.ogsm[gid] ? ogColor(S.ogsm[gid]) : 1);
         rows.forEach(function (oc) {
           var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + (oc.dataset.cio ? 28 : 24);
-          og += '<path class="' + cls + '" d="M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + '"></path>' +
+          var d;
+          if (isOg && oc.dataset.oid && Math.abs(ty - sy) > 12) {
+            // Direct van OGSM-doel naar outcome: omlaag langs de rand van de OGSM-kolom, dan rechtdoor door de lege CIO-cel, zodat de lijn niet over tekst loopt
+            var vx = r0.right - br0.left + 6, rr = Math.min(10, Math.abs(ty - sy) / 2), dn = ty > sy ? 1 : -1;
+            d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' H' + (vx - rr).toFixed(1) + ' Q' + vx.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + vx.toFixed(1) + ' ' + (sy + dn * rr).toFixed(1) +
+              ' V' + (ty - dn * rr).toFixed(1) + ' Q' + vx.toFixed(1) + ' ' + ty.toFixed(1) + ' ' + (vx + rr).toFixed(1) + ' ' + ty.toFixed(1) + ' H' + tx.toFixed(1);
+          } else {
+            d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1);
+          }
+          og += '<path class="' + cls + '" d="' + d + '"></path>' +
             '<circle class="' + cls + ' dot" cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="3"></circle>';
         });
         if (rows.length) og += '<circle class="' + cls + ' dot" cx="' + sx.toFixed(1) + '" cy="' + (Math.min(r0.top + 28, r0.bottom - 16) - br0.top).toFixed(1) + '" r="3.5"></circle>';
