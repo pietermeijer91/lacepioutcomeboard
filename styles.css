@@ -542,3 +542,6 @@ body.exporting #parking,body.exporting .hint,body.exporting .addrow,body.exporti
 /* '+ mijlpaal' alleen tonen bij aanwijzen van de rij (op touch altijd zichtbaar) */
 @media (hover:hover){ .row .add{opacity:0;transition:opacity .15s} .row:hover .add,.row .add:focus-visible{opacity:1} }
 .export>summary.btn{display:inline-flex;align-items:center}
+
+/* Geen CIO Office-doel: lege, rustige cel; de lijn loopt direct van OGSM-doel naar outcome */
+.ciocell.cio-skip{background:transparent;border-color:transparent;padding:0;min-height:0}

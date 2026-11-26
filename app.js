@@ -246,20 +246,19 @@
     var empty = goals.filter(function (g) { return !outs.some(function (o) { return o.ogsmRef === g.id || (Array.isArray(o.ogsmExtra) && o.ogsmExtra.indexOf(g.id) >= 0); }); });
     var unl = outs.filter(function (o) { return !o.ogsmRef || !S.ogsm[o.ogsmRef]; }).length;
     var cios = goalList('cio'), cioEmpty = cios.filter(function (c) { return !outs.some(function (o) { return o.cioRef === c.id; }); });
-    var cioUnl = cios.length ? outs.filter(function (o) { return !o.cioRef || !S.ogsm[o.cioRef]; }).length : 0;
     empty = empty.concat(cioEmpty);
     var h = '<div class="ogobj"><span class="ogobj-l">OGSM-ambitie</span>' + (obj ? '<b>' + esc(obj) + '</b>' : '<b class="muted">Nog niet ingevuld</b>') +
       (S.readOnly ? '' : '<button type="button" class="mini edit" data-ogact="manage">' + (goals.length || obj ? '✎ OGSM beheren' : '+ OGSM invullen') + '</button>') + '</div>';
-    if (empty.length || unl || cioUnl) h += '<div class="ogchips">' + empty.map(function (g) { return '<span class="ogwarn">' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + ' heeft deze PI geen outcome</span>'; }).join('') +
+    if (empty.length || unl) h += '<div class="ogchips">' + empty.map(function (g) { return '<span class="ogwarn">' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + ' heeft deze PI geen outcome</span>'; }).join('') +
       (unl ? '<span class="ogchip">' + unl + (unl === 1 ? ' outcome' : ' outcomes') + ' nog niet gekoppeld aan een OGSM-doel</span>' : '') +
-      (cioUnl ? '<span class="ogchip">' + cioUnl + (cioUnl === 1 ? ' outcome' : ' outcomes') + ' nog niet gekoppeld aan een CIO Office-doel</span>' : '') + '</div>';
+      '</div>';
     el.innerHTML = h;
   }
 
   function renderBoard() {
     if (!S.ready) { $('board').innerHTML = '<div class="empty">Bord laden…</div>'; return; }
     var T = timeInfo(), ms = msList(), outs = sortedOutcomes(), fid = focusId(outs);
-    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="cgroup head"><div class="ogh">CIO Office-doel</div><div class="ogrows"><div class="row head"><div>PI-outcome</div>' + T.iters.map(function (it, i) {
+    var h = '<div class="ogroup head"><div class="ogh">OGSM-doel</div><div class="ogrows"><div class="cgroup head"><div class="ogh">CIO Office-doel</div><div class="ogrows"><div class="row head"><div>LACE PI-outcome</div>' + T.iters.map(function (it, i) {
       return '<div class="it' + (i === T.nowIdx ? ' now' : '') + '">' + esc(it.name) + (i === T.nowIdx ? '<span class="nowpill">Nu</span>' : '') + '<span class="dates">' + esc(it.dates) + '</span></div>';
     }).join('') + '</div></div></div></div></div>';
 
@@ -317,7 +316,7 @@
         var cl = c.cio
           ? '<div class="ogcell ciocell ogc-' + ogColor(c.cio) + '" data-cio="' + esc(c.cio.id) + '"><span class="ogcode">' + esc(c.cio.code || 'CIO') + '</span><b>' + esc(c.cio.title || '(zonder titel)') + '</b>' +
             (c.cio.measure ? '<span class="ogsub">' + esc(c.cio.measure) + '</span>' : '') + '<span class="ogstat">' + c.outs.length + (c.outs.length === 1 ? ' outcome' : ' outcomes') + '</span></div>'
-          : '<div class="ogcell ciocell ogc-none" data-cio="_none"><b>Geen CIO Office-doel</b><span class="ogsub">Kies het bij Bewerken.</span></div>';
+          : '<div class="ogcell ciocell cio-skip" data-cio="_none" aria-hidden="true"></div>'; // CIO Office-doel is optioneel: de outcome hangt dan direct aan het OGSM-doel
         return '<div class="cgroup">' + cl + '<div class="ogrows">' + c.outs.map(outcomeRow).join('') + '</div></div>';
       }).join('');
       h += '<div class="ogroup">' + left + '<div class="ogrows">' + subs + '</div></div>';
@@ -352,10 +351,16 @@
       var br0 = board.getBoundingClientRect(), og = '';
       board.querySelectorAll('[data-og],[data-cio]').forEach(function (blk) {
         var gid = blk.dataset.og || blk.dataset.cio, isOg = !!blk.dataset.og, r0 = blk.getBoundingClientRect();
-        var rows = isOg ? blk.parentNode.querySelectorAll(':scope > .ogrows > .cgroup > [data-cio]') : blk.parentNode.querySelectorAll(':scope > .ogrows [data-oid]');
+        if (!isOg && gid === '_none') return; // geen CIO Office-doel: lijnen lopen direct van het OGSM-doel naar de outcomes
+        var rows = [];
+        if (isOg) blk.parentNode.querySelectorAll(':scope > .ogrows > .cgroup > [data-cio]').forEach(function (c) {
+          if (c.dataset.cio === '_none') c.parentNode.querySelectorAll(':scope > .ogrows [data-oid]').forEach(function (o) { rows.push(o); });
+          else rows.push(c);
+        });
+        else blk.parentNode.querySelectorAll(':scope > .ogrows [data-oid]').forEach(function (o) { rows.push(o); });
         var sx = r0.right - br0.left - 10, cls = gid === '_none' ? 'ogl none' : 'ogl ogc-' + (S.ogsm[gid] ? ogColor(S.ogsm[gid]) : 1);
         rows.forEach(function (oc) {
-          var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + (isOg ? 28 : 24);
+          var r1 = oc.getBoundingClientRect(), sy = Math.min(r0.top + 28, r0.bottom - 16) - br0.top, tx = r1.left - br0.left + 4, ty = r1.top - br0.top + (oc.dataset.cio ? 28 : 24);
           og += '<path class="' + cls + '" d="M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + '"></path>' +
             '<circle class="' + cls + ' dot" cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="3"></circle>';
         });
@@ -836,7 +841,7 @@
         (S.ogsmMissing ? '' : '<div class="sec"><label class="field">OGSM-doel<select id="o-ogsm" data-f="ogsmRef"' + ro + '>' + opt('', 'Nog niet gekoppeld', o.ogsmRef || '') + goals.map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.ogsmRef || ''); }).join('') + '</select></label>' +
           (goals.length > 1 ? '<div class="ogx"><span class="h">Draagt ook bij aan</span>' + goals.map(function (g) { return '<label class="ogxl"><input type="checkbox" data-ogx="' + esc(g.id) + '"' + ((o.ogsmExtra || []).indexOf(g.id) >= 0 ? ' checked' : '') + (g.id === o.ogsmRef ? ' disabled' : '') + ro + '>' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + '</label>'; }).join('') + '</div>' : '') +
           (goals.length ? '' : '<p class="note">Nog geen OGSM-doelen. Vul ze in via PI-instellingen › OGSM.</p>') +
-          '<label class="field">CIO Office-doel<select id="o-cio" data-f="cioRef"' + ro + '>' + opt('', 'Nog niet gekoppeld', o.cioRef || '') + goalList('cio').map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.cioRef || ''); }).join('') + '</select></label>' +
+          '<label class="field">CIO Office-doel (optioneel)<select id="o-cio" data-f="cioRef"' + ro + '>' + opt('', 'Geen, direct aan het OGSM-doel', o.cioRef || '') + goalList('cio').map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.cioRef || ''); }).join('') + '</select></label>' +
           (goalList('cio').length ? '' : '<p class="note">Nog geen CIO Office-doelen. Vul ze in via PI-instellingen.</p>') + '</div>') +
         '<label class="field">Hypothese<textarea class="prose" id="o-hyp" data-f="hypothesis" rows="3" placeholder="Wij geloven dat [aanpak] leidt tot [resultaat]. We weten dat het werkt als [meetbaar signaal]."' + ro + '>' + esc(o.hypothesis || '') + '</textarea></label>' +
         '<div class="three"><label class="field">Commitment<select id="o-commit" data-f="commitment"' + ro + '>' + opt('committed', 'Committed', o.commitment || 'committed') + opt('stretch', 'Stretch (uncommitted)', o.commitment || 'committed') + '</select></label>' +
