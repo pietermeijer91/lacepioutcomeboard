@@ -364,9 +364,11 @@
           var d;
           if (isOg && oc.dataset.oid && Math.abs(ty - sy) > 12) {
             // Direct van OGSM-doel naar outcome: omlaag langs de rand van de OGSM-kolom, dan rechtdoor door de lege CIO-cel, zodat de lijn niet over tekst loopt
-            var vx = r0.right - br0.left + 6, rr = Math.min(10, Math.abs(ty - sy) / 2), dn = ty > sy ? 1 : -1;
-            d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' H' + (vx - rr).toFixed(1) + ' Q' + vx.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + vx.toFixed(1) + ' ' + (sy + dn * rr).toFixed(1) +
-              ' V' + (ty - dn * rr).toFixed(1) + ' Q' + vx.toFixed(1) + ' ' + ty.toFixed(1) + ' ' + (vx + rr).toFixed(1) + ' ' + ty.toFixed(1) + ' H' + tx.toFixed(1);
+            // Ruime bochten: boven een zachte bocht omlaag, onder een brede bocht naar rechts
+            var vx = r0.right - br0.left + 6, span = Math.abs(ty - sy), dn = ty > sy ? 1 : -1;
+            var r1 = Math.min(36, span / 2), r2 = Math.min(64, span / 2, Math.max(0, tx - vx - 8));
+            d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + vx.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + vx.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + vx.toFixed(1) + ' ' + (sy + dn * r1).toFixed(1) +
+              ' V' + (ty - dn * r2).toFixed(1) + ' C' + vx.toFixed(1) + ' ' + (ty - dn * r2 * 0.25).toFixed(1) + ' ' + (vx + r2 * 0.25).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + (vx + r2).toFixed(1) + ' ' + ty.toFixed(1) + ' H' + tx.toFixed(1);
           } else {
             d = 'M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + (sx + 18).toFixed(1) + ' ' + sy.toFixed(1) + ' ' + (tx - 18).toFixed(1) + ' ' + ty.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1);
           }
