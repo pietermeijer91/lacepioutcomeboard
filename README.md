@@ -6,6 +6,10 @@ Een gedeeld bord waarop het LACE-team richting PI-outcomes plant en bijhoudt hoe
 - **Opslag en live updates:** [Supabase](https://supabase.com) (Postgres + Realtime).
 - **Geen login:** iedereen met de link kan het bord bekijken en wijzigen. Zet er dus geen vertrouwelijke informatie op, en deel de link alleen binnen het team. Wie wil, vult rechtsboven zijn naam in; die verschijnt dan bij “bijgewerkt door”.
 
+## Management Review
+
+Met de knop **Review** boven het bord open je het Management Review-bord met vier vakken: Decisions Needed, Risks, Decisions Confirmed en Actions. Typ in een vak en druk op Enter om een briefje toe te voegen, klik op een briefje voor titel, toelichting, eigenaar, deadline en (optioneel) de LACE PI-outcome, en sleep briefjes naar een ander vak. Open items die aan een outcome hangen, zie je als label op die outcome.
+
 ## Exporteren
 
 Met de knop **Exporteren** boven het bord download je het bord als afbeelding (PNG) of sla je het op als PDF (via het afdrukvenster, kies ‘Opslaan als PDF’). De export toont het bord zoals je het nu ziet, zonder knoppen en zonder parkeerplaats. Klap eerst alles uit als je alle details wilt meenemen.

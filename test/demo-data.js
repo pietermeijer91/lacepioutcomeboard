@@ -49,6 +49,13 @@
       { id: 'm7', row_ref: 'p1', contrib_ref: '', iter: 1, title: 'Voorbereid voor volgende PI', type: 'learn', status: 'planned', created_at: daysAgo(24) },
       { id: 'm6', row_ref: 'o2', contrib_ref: 'c3', iter: 1, title: 'Draaiboek v1', type: 'learn', status: 'planned', created_at: daysAgo(25) }
     ],
+    decisions: [
+      { id: 'd1', kind: 'needed', title: 'Welke teams starten met flow-dashboards?', notes: '', owner: 'Voorbeeld A', due: iso(new Date(today.getTime() + 5 * 864e5)), outcome_ref: 'o1', sort_order: 1 },
+      { id: 'd2', kind: 'risk', title: 'Jira-data onvolledig', notes: 'Statussen verschillen per team', owner: 'Voorbeeld B', due: null, outcome_ref: 'o1', sort_order: 2 },
+      { id: 'd3', kind: 'risk', title: 'Beperkte beschikbaarheid RTE\'s', notes: '', owner: '', due: null, outcome_ref: '', sort_order: 3 },
+      { id: 'd4', kind: 'confirmed', title: 'PI Planning blijft twee dagen deze PI', notes: '', owner: 'Voorbeeld C', due: null, outcome_ref: 'o2', sort_order: 4 },
+      { id: 'd5', kind: 'action', title: 'Statussen in Jira gelijktrekken', notes: '', owner: 'Voorbeeld A', due: iso(new Date(today.getTime() - 2 * 864e5)), outcome_ref: 'o1', sort_order: 5 }
+    ],
     tasks: [
       { id: 't1', title: 'Koppeling Jira-statussen testen', outcome_ref: 'o1', milestone_ref: 'm4', owner: 'Voorbeeld A', status: 'doing', iter: 1, checklist: [{ id: 'x1', text: 'Testset kiezen', done: true }, { id: 'x2', text: 'Afwijkingen noteren', done: false }], notes: '', sort_order: 1, created_at: daysAgo(10) },
       { id: 't2', title: 'Dashboard-template maken', outcome_ref: 'o1', milestone_ref: 'm4', owner: 'Voorbeeld A', status: 'todo', iter: 2, checklist: [], notes: '', sort_order: 2, created_at: daysAgo(9) },
