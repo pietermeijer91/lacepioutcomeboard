@@ -16,7 +16,7 @@ Live: https://pietermeijer91.github.io/lacepioutcomeboard/ — alles wat op `mai
 - In `app.js` heten velden camelCase; `KEYMAP` vertaalt naar de snake_case-kolommen (`toRow`/`fromRow`). Nieuwe kolom met een andere naam? Voeg hem toe aan `KEYMAP`.
 - Schrijven gaat via `queue(col, id, patch, delay)` (optimistisch lokaal bijwerken, daarna debounced `update`). Realtime-events en `loadAll()` leggen openstaande wijzigingen eroverheen (`overlay`), zodat typen niet wordt overschreven.
 - Drie weergaven via tabs en de URL-hash: Outcome Board (standaard), `#planner` en `#sync`. `renderViews()` tekent de actieve weergave; gebruik die in plaats van `renderBoard()` na een wijziging.
-- Doelen hebben een `owner` (migratie 012), rechtsboven in de cel als voornaam (`ownerChip`). Lijnen zijn per lijn licht verschillend via `seeded(id)`: speels maar stabiel bij hertekenen.
+- Doelen (migratie 012) en outcomes (migratie 013) hebben een `owner`, rechtsboven in de cel als voornaam (`ownerChip`). Lijnen zijn per lijn licht verschillend via `seeded(id)`: speels maar stabiel bij hertekenen.
 - Exporteren (knop Exporteren): `boardImage()` maakt met `html-to-image@1.11.13` (pas bij klikken geladen van jsDelivr) een PNG van `#viewBoard`; `body.exporting` verbergt knoppen en de parkeerplaats. PDF = die afbeelding afdrukken via een verborgen iframe (Opslaan als PDF).
 - Weergave: `renderBoard()` bouwt het bord als HTML-string; het zijpaneel (`buildDrawer`/`syncDrawer`) wordt apart bijgewerkt zodat focus en cursor behouden blijven.
 

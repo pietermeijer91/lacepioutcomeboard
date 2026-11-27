@@ -26,7 +26,7 @@
       { id: 'g2', kind: 'goal', code: 'G2', title: 'Wendbare organisatie', strategy: 'AI-native werken', measure: '3 teams werken AI-native', color: 2, sort_order: 2 }
     ],
     outcomes: [
-      { id: 'o1', title: 'Flow-metrics zichtbaar per team', sort_order: 1, ogsm_ref: 'g1', ogsm_extra: ['g2'], cio_ref: 'c1', checks: { invloed: true, termijn: true, meetbaar: true, capaciteit: true, eerstestap: true }, commitment: 'committed', bv_planned: 8, bv_actual: null,
+      { id: 'o1', title: 'Flow-metrics zichtbaar per team', owner: 'Voorbeeld B', sort_order: 1, ogsm_ref: 'g1', ogsm_extra: ['g2'], cio_ref: 'c1', checks: { invloed: true, termijn: true, meetbaar: true, capaciteit: true, eerstestap: true }, commitment: 'committed', bv_planned: 8, bv_actual: null,
         hypothesis: 'Wij geloven dat flow-metrics per team leiden tot betere keuzes in PI Planning. We weten dat het werkt als teams de cijfers gebruiken in hun sync.',
         krs: [{ id: 'k1', text: '6 teams met een flow-dashboard', kind: 'lagging', start: 0, target: 6, current: 2, unit: '' },
               { id: 'k2', text: 'Teams die lead time meten', kind: 'leading', start: 20, target: 80, current: 35, unit: '%' }],
