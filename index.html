@@ -6,7 +6,7 @@
 <title>LACE PI Outcome Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="styles.css?v=2026-11-27a">
+<link rel="stylesheet" href="styles.css?v=2026-11-27b">
 </head>
 <body>
 <div id="gate" hidden></div>
@@ -43,7 +43,8 @@
       <span class="kpi"><span class="k">Risico of gemist</span><span class="v num" id="tRisk">0</span></span>
       <span class="kpi"><span class="k">Nu</span><span class="v word" id="tNow">–</span><span class="sr-only" id="tNowSub"></span></span>
     </div>
-    <div class="actions"><button class="btn" type="button" id="btnDeps" aria-pressed="true">Afhankelijkheden verbergen</button>
+    <div class="actions"><button class="btn rvbtn" type="button" id="btnReview" aria-haspopup="dialog"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M12 3v18M4 12h16"></path></svg>Review<span class="rvcount" id="rvCount" hidden>0</span></button>
+    <button class="btn" type="button" id="btnDeps" aria-pressed="true">Afhankelijkheden verbergen</button>
     <button class="btn" type="button" id="btnView" aria-pressed="false">Alles uitklappen</button>
     <details class="export" id="exportMenu"><summary class="btn">Exporteren</summary>
       <div class="exportpop"><button type="button" class="btn ghost" data-export="png">Afbeelding (PNG)</button><button type="button" class="btn ghost" data-export="pdf">PDF</button></div>
@@ -55,19 +56,20 @@
   </section>
 
   <footer class="legend" id="legend"></footer>
-  <p class="hint"><span class="ver">Versie 2026-11-27a</span> · Outcomes staan gegroepeerd per OGSM-doel. Klik op een outcome om die uit te klappen. Een mijlpaal voeg je toe met de knop + Mijlpaal, of met ‘+ mijlpaal’ dat verschijnt als je met de muis over een rij gaat. Ga met de muis over een mijlpaal om zijn afhankelijkheden te zien.</p>
+  <p class="hint"><span class="ver">Versie 2026-11-27b</span> · Outcomes staan gegroepeerd per OGSM-doel. Klik op een outcome om die uit te klappen. Een mijlpaal voeg je toe met de knop + Mijlpaal, of met ‘+ mijlpaal’ dat verschijnt als je met de muis over een rij gaat. Ga met de muis over een mijlpaal om zijn afhankelijkheden te zien.</p>
   </div>
 
   <div id="viewPlanner" class="view" hidden><div id="planner"><div class="empty">Planner laden…</div></div></div>
   <div id="viewSync" class="view" hidden><div id="sync"><div class="empty">Laden…</div></div></div>
 </div>
 
+<div id="rvRoot"></div>
 <div id="drawerRoot"></div>
 <div id="toastRoot" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2026-11-27a"></script>
+<script src="config.js?v=2026-11-27b"></script>
 <script>if (/[?&]demo\b/.test(location.search)) document.write('<script src="test/demo-data.js"><\/script>');</script>
-<script src="app.js?v=2026-11-27a"></script>
+<script src="app.js?v=2026-11-27b"></script>
 </body>
 </html>

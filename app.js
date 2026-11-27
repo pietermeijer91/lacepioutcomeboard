@@ -123,7 +123,7 @@
   }
 
   /* ---------- weergave ---------- */
-  function renderAll() { renderHeader(); renderViews(); setLive(); syncDrawer(); }
+  function renderAll() { renderHeader(); renderViews(); setLive(); syncDrawer(); renderReview(); }
 
   function renderHeader() {
     var T = timeInfo();
@@ -278,7 +278,7 @@
       if (!expanded) {
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
           '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><div class="otags"><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span>' + ownerChip(o, 'o-own') + '</div></div>' + bar +
-          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
+          '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) + reviewTags(o) +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
           // Mijlpalen altijd als kaartje met tekst, ook als de outcome is ingeklapt
           T.iters.map(function (n, i) { return cell(i, 1, T, oms.filter(function (m) { return iterOf(m) === i; }).map(function (m) { return msCard(m, T); }).join('') + addBtn(o.id, i, ''), 'l first', { row: o.id, contrib: '*' }); }).join('') +
@@ -292,7 +292,7 @@
         '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1 / span ' + n + '">' +
         '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><div class="otags"><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span>' + ownerChip(o, 'o-own') + '</div></div>' + bar +
         // Compact: kerncijfers en key results op één regel; hypothese, check-ins, business value en leerlog staan in het zijpaneel
-        '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%' + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
+        '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%' + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) + reviewTags(o) +
         (krs.length ? '<ul class="krs mini">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li title="' + esc(k.text) + '"><span class="kt">' + esc(k.text) + '</span><span class="num">' + esc(num(k.current) + u + '/' + num(k.target) + u) + '</span><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span></li>'; }).join('') + '</ul>' : '') +
         (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button><button type="button" class="mini" data-act="addmsout" data-id="' + esc(o.id) + '">+ Mijlpaal</button><button type="button" class="mini" data-act="checkin" data-id="' + esc(o.id) + '">+ Check-in</button></div>') + '</div>';
 
@@ -427,6 +427,7 @@
       var e = res.error;
       if (/checks/.test(e.message || '')) { toast('De outcome-check is nog niet geactiveerd. Voer supabase/migrations/008_outcome_check.sql uit in Supabase.'); return; }
       if (/parked|next_pi_name/.test(e.message || '')) { toast('De parkeerplaats is nog niet geactiveerd. Voer supabase/migrations/010_parkeerplaats.sql uit in Supabase.'); return; }
+      if (/decisions/.test(e.message || '')) { toast('Het Management Review-bord is nog niet geactiveerd. Voer supabase/migrations/014_review_bord.sql uit in Supabase.'); return; }
       if (/owner/.test(e.message || '') && /outcomes/.test(e.message || '')) { toast('Eigenaar bij outcomes is nog niet geactiveerd. Voer supabase/migrations/013_outcome_eigenaar.sql uit in Supabase.'); return; }
       if (/owner/.test(e.message || '') && /ogsm/.test(e.message || '')) { toast('Eigenaar bij doelen is nog niet geactiveerd. Voer supabase/migrations/012_ogsm_eigenaar.sql uit in Supabase.'); return; }
       if (/cio_ref|ogsm_kind_check/.test(e.message || '')) { toast('De CIO Office-kolom is nog niet geactiveerd. Voer supabase/migrations/009_cio_office.sql uit in Supabase.'); return; }
@@ -441,7 +442,7 @@
     }
   }
   function track(promise) { saving++; setLive(); return Promise.resolve(promise).then(check, function () { toast('Opslaan mislukt. Controleer je verbinding en probeer het opnieuw.'); }).then(function () { saving--; setLive(); }); }
-  function storeFor(col) { return col === 'outcomes' ? S.outcomes : col === 'tasks' ? S.tasks : col === 'ogsm' ? S.ogsm : S.milestones; }
+  function storeFor(col) { return col === 'outcomes' ? S.outcomes : col === 'tasks' ? S.tasks : col === 'ogsm' ? S.ogsm : col === 'decisions' ? (S.decisions || (S.decisions = {})) : S.milestones; }
   function queue(col, id, patch, delay) {
     var k = col + '/' + id;
     var p = pending[k] || (pending[k] = { col: col, id: id, patch: {}, t: null });
@@ -451,6 +452,7 @@
     clearTimeout(p.t);
     p.t = setTimeout(function () { flush(k); }, delay == null ? 450 : delay);
     renderHeader(); renderViews(); setLive();
+    if (col === 'decisions') renderReview();
   }
   function flush(k) {
     var p = pending[k]; if (!p) return; delete pending[k]; clearTimeout(p.t);
@@ -573,10 +575,138 @@
     else if (a === 'checkin') { openDrawer({ kind: 'o', id: id }); var cf = $('ci-conf'); if (cf) { cf.scrollIntoView({ block: 'center' }); cf.focus(); } }
     else if (a === 'focus') { setFocus(id); renderViews(); }
     else if (a === 'unfocus') { setFocus('__none__'); renderViews(); }
+    else if (a === 'review') { openReview(b.dataset.id); }
     else if (a === 'addms' && S.ready && !S.readOnly) { S.quick = { row: b.dataset.row, iter: num(b.dataset.iter), contrib: b.dataset.contrib || '', text: '' }; renderViews(); }
   });
   $('btnAddOutcome').addEventListener('click', function () { if (S.ready && !S.readOnly) addOutcome(); });
   $('btnView').addEventListener('click', function () { S.expandAll = !S.expandAll; saveView(); renderViews(); });
+
+  /* ---------- Management Review-bord (Decisions Needed, Risks, Decisions Confirmed, Actions) ---------- */
+  var RV = [
+    { k: 'needed', l: 'Decisions Needed', one: 'besluit nodig', many: 'besluiten nodig' },
+    { k: 'risk', l: 'Risks', one: 'risico', many: "risico's" },
+    { k: 'confirmed', l: 'Decisions Confirmed', one: 'besluit', many: 'besluiten' },
+    { k: 'action', l: 'Actions', one: 'actie', many: 'acties' }
+  ];
+  var RVL = {}; RV.forEach(function (q) { RVL[q.k] = q; });
+  S.rv = { open: false, edit: null, filter: '' };
+  function decList() { return Object.keys(S.decisions || {}).map(function (id) { return Object.assign({ id: id }, S.decisions[id]); }).sort(function (a, b) { return num(a.order) - num(b.order); }); }
+  function openCount() { return decList().filter(function (d) { return d.kind !== 'confirmed'; }).length; }
+  function todayIso() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function dueLabel(d) {
+    if (!d.due) return '';
+    var late = d.kind !== 'confirmed' && d.due < todayIso();
+    var dt = new Date(d.due + 'T12:00:00');
+    return '<span class="rvdue' + (late ? ' late' : '') + '">' + (late ? 'Te laat · ' : '') + esc(dt.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })) + '</span>';
+  }
+  // Kleine labels op een outcome, bijv. "2 risico's · 1 besluit nodig"
+  function reviewTags(o) {
+    if (S.decisionsMissing) return '';
+    var ds = decList().filter(function (d) { return d.outcome === o.id && d.kind !== 'confirmed'; });
+    if (!ds.length) return '';
+    return '<div class="rvtags">' + ['risk', 'needed', 'action'].map(function (k) {
+      var n = ds.filter(function (d) { return d.kind === k; }).length; if (!n) return '';
+      return '<button type="button" class="rvtag rv-' + k + '" data-act="review" data-id="' + esc(o.id) + '">' + n + ' ' + (n === 1 ? RVL[k].one : RVL[k].many) + '</button>';
+    }).join('') + '</div>';
+  }
+  function renderReviewBtn() {
+    var b = $('btnReview'); if (!b) return;
+    var n = S.decisionsMissing ? 0 : openCount();
+    $('rvCount').textContent = n; $('rvCount').hidden = !n;
+    b.setAttribute('aria-label', 'Management Review-bord openen' + (n ? ', ' + n + ' open' : ''));
+  }
+  function openReview(filter) { S.rv.open = true; S.rv.edit = null; S.rv.filter = filter || ''; renderReview(true); var f = $('rvRoot').querySelector('.rvhead [data-rv="close"]'); if (f) f.focus(); }
+  function closeReview() { S.rv.open = false; S.rv.edit = null; $('rvRoot').innerHTML = ''; var b = $('btnReview'); if (b) b.focus(); }
+  function noteHtml(d) {
+    var o = d.outcome && S.outcomes[d.outcome];
+    return '<li><button type="button" class="rvnote n-' + esc(d.kind) + '" draggable="' + (S.readOnly ? 'false' : 'true') + '" data-rv="edit" data-id="' + esc(d.id) + '">' +
+      '<span class="rvt">' + esc(d.title || '(zonder titel)') + '</span>' +
+      (d.notes ? '<span class="rvn">' + esc(d.notes) + '</span>' : '') +
+      '<span class="rvmeta">' + (d.owner ? '<span class="rvown" title="' + esc(d.owner) + '"><span class="ini" aria-hidden="true">' + esc(initials(d.owner)) + '</span>' + esc(String(d.owner).trim().split(/\s+/)[0]) + '</span>' : '') + dueLabel(d) +
+      (o ? '<span class="rvout" title="' + esc(o.title || '') + '">' + esc(o.title || 'Outcome') + '</span>' : '') + '</span></button></li>';
+  }
+  function editorHtml(d) {
+    var ro = S.readOnly ? ' disabled' : '';
+    var outs = allOutcomes().filter(function (o) { return !o.parked; });
+    return '<div class="rvedit" role="group" aria-label="Item bewerken"><div class="rvedit-top"><h3>' + esc(RVL[d.kind] ? RVL[d.kind].l : '') + '</h3><button type="button" class="x" data-rv="done" aria-label="Sluiten">' + X_ICON + '</button></div>' +
+      '<label class="field">Titel<input type="text" data-rf="title" value="' + esc(d.title || '') + '"' + ro + '></label>' +
+      '<label class="field">Toelichting<textarea rows="3" data-rf="notes"' + ro + '>' + esc(d.notes || '') + '</textarea></label>' +
+      '<div class="two"><label class="field">Eigenaar<input type="text" data-rf="owner" autocomplete="off" value="' + esc(d.owner || '') + '"' + ro + '></label>' +
+      '<label class="field">Datum / deadline<input type="date" data-rf="due" value="' + esc(d.due || '') + '"' + ro + '></label></div>' +
+      '<div class="two"><label class="field">Vak<select data-rf="kind"' + ro + '>' + RV.map(function (q) { return opt(q.k, q.l, d.kind); }).join('') + '</select></label>' +
+      '<label class="field">LACE PI-outcome (optioneel)<select data-rf="outcome"' + ro + '>' + opt('', 'Geen', d.outcome || '') + outs.map(function (o) { return opt(o.id, o.title || '(zonder titel)', d.outcome || ''); }).join('') + '</select></label></div>' +
+      (S.readOnly ? '' : '<div class="rvedit-foot"><button type="button" class="btn ghost danger" data-rv="del">Verwijderen</button><button type="button" class="btn primary" data-rv="done">Klaar</button></div>') + '</div>';
+  }
+  function renderReview(force) {
+    renderReviewBtn();
+    var root = $('rvRoot'); if (!root || !S.rv.open) return;
+    var ae = document.activeElement, inEdit = ae && root.contains(ae) && ae.dataset && ae.dataset.rf;
+    var addFocus = ae && ae.dataset && ae.dataset.rvadd ? [ae.dataset.rvadd, ae.value] : null;
+    if (!root.firstChild || force) {
+      root.innerHTML = '<div class="scrim rvscrim" data-rv="close"></div><section class="rvpanel" role="dialog" aria-modal="true" aria-labelledby="rvTitle">' +
+        '<header class="rvhead"><div><h2 id="rvTitle">Management Review</h2><p class="sub">Besluiten, risico\'s en acties van het LACE. Sleep een briefje naar een ander vak.</p></div>' +
+        '<div class="rvtools"><label class="field inline">Toon<select id="rvFilter"></select></label><button type="button" class="x" data-rv="close" aria-label="Sluiten">' + X_ICON + '</button></div></header>' +
+        '<div class="rvbody"><div class="rvgrid" id="rvGrid"></div><div id="rvEditBox"></div></div></section>';
+    }
+    if (S.decisionsMissing) { $('rvGrid').innerHTML = '<p class="empty">Het Management Review-bord is nog niet geactiveerd. Voer <code>supabase/migrations/014_review_bord.sql</code> uit in Supabase.</p>'; return; }
+    var outs = allOutcomes().filter(function (o) { return !o.parked; });
+    $('rvFilter').innerHTML = opt('', 'Alle items', S.rv.filter) + outs.map(function (o) { return opt(o.id, o.title || '(zonder titel)', S.rv.filter); }).join('');
+    var all = decList().filter(function (d) { return !S.rv.filter || d.outcome === S.rv.filter; });
+    $('rvGrid').innerHTML = RV.map(function (q) {
+      var ds = all.filter(function (d) { return d.kind === q.k; });
+      return '<section class="rvq q-' + q.k + '" data-rvq="' + q.k + '" aria-label="' + esc(q.l) + '"><h3>' + esc(q.l) + ' <span class="cnt">' + ds.length + '</span></h3>' +
+        '<ul class="rvlist">' + ds.map(noteHtml).join('') + '</ul>' +
+        (S.readOnly ? '' : '<input type="text" class="rvadd" data-rvadd="' + q.k + '" placeholder="+ Toevoegen, Enter = opslaan" aria-label="Toevoegen aan ' + esc(q.l) + '" autocomplete="off">') + '</section>';
+    }).join('');
+    if (addFocus) { var ai = $('rvGrid').querySelector('[data-rvadd="' + addFocus[0] + '"]'); if (ai) { ai.value = addFocus[1]; ai.focus(); } }
+    var box = $('rvEditBox'), d = S.rv.edit && S.decisions[S.rv.edit] ? Object.assign({ id: S.rv.edit }, S.decisions[S.rv.edit]) : null;
+    if (!d) { box.innerHTML = ''; return; }
+    if (!inEdit || box.dataset.id !== d.id) { box.dataset.id = d.id; box.innerHTML = editorHtml(d); var t = box.querySelector('[data-rf="title"]'); if (force !== 'keep' && t && !inEdit) t.focus(); }
+    else box.querySelectorAll('[data-rf]').forEach(function (el) { if (el === ae) return; var v = d[el.dataset.rf]; el.value = v == null ? '' : v; });
+  }
+  function addDecision(kind, title) {
+    var id = rid('d'), max = decList().reduce(function (a, d) { return Math.max(a, num(d.order)); }, 0);
+    insert('decisions', id, Object.assign({ kind: kind, title: title, notes: '', owner: '', due: null, outcome: S.rv.filter || '', order: max + 1, createdAt: new Date().toISOString() }, meta()));
+    renderAll();
+  }
+  $('btnReview').addEventListener('click', function () { if (S.ready) openReview(); });
+  $('rvRoot').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rv]'); if (!b) return;
+    var a = b.dataset.rv;
+    if (a === 'close') closeReview();
+    else if (a === 'edit') { S.rv.edit = b.dataset.id; renderReview(); }
+    else if (a === 'done') { var id = S.rv.edit; S.rv.edit = null; renderReview(); var n = id && $('rvGrid').querySelector('[data-rv="edit"][data-id="' + id + '"]'); if (n) n.focus(); }
+    else if (a === 'del' && S.rv.edit) {
+      var did = S.rv.edit; delete pending['decisions/' + did]; delete S.decisions[did]; S.rv.edit = null;
+      track(S.sb.from('decisions').delete().eq('id', did)); renderAll(); toast('Item verwijderd.');
+    }
+  });
+  $('rvRoot').addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t.dataset && t.dataset.rvadd && e.key === 'Enter' && !S.readOnly) { e.preventDefault(); var v = t.value.trim(); if (!v) return; t.value = ''; addDecision(t.dataset.rvadd, v); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !S.rv.open || $('drawerRoot').firstChild) return;
+    if (S.rv.edit) { S.rv.edit = null; renderReview(); } else closeReview();
+  });
+  $('rvRoot').addEventListener('input', function (e) {
+    var el = e.target; if (!el.dataset || !el.dataset.rf || !S.rv.edit) return;
+    var p = {}; p[el.dataset.rf] = el.dataset.rf === 'due' ? (el.value || null) : el.value;
+    queue('decisions', S.rv.edit, p, el.tagName === 'SELECT' || el.type === 'date' ? 0 : null);
+  });
+  $('rvRoot').addEventListener('change', function (e) {
+    if (e.target.id === 'rvFilter') { S.rv.filter = e.target.value; renderReview(); }
+    else if (e.target.dataset && (e.target.dataset.rf === 'kind' || e.target.dataset.rf === 'outcome')) renderReview('keep');
+  });
+  // Slepen tussen de vakken
+  $('rvRoot').addEventListener('dragstart', function (e) { var n = e.target.closest && e.target.closest('.rvnote'); if (!n) return; e.dataTransfer.setData('text/plain', n.dataset.id); e.dataTransfer.effectAllowed = 'move'; n.classList.add('dragging'); });
+  $('rvRoot').addEventListener('dragend', function (e) { var n = e.target.closest && e.target.closest('.rvnote'); if (n) n.classList.remove('dragging'); [].forEach.call($('rvRoot').querySelectorAll('.rvq.drop-over'), function (q) { q.classList.remove('drop-over'); }); });
+  $('rvRoot').addEventListener('dragover', function (e) { var q = e.target.closest && e.target.closest('.rvq'); if (!q) return; e.preventDefault(); [].forEach.call($('rvRoot').querySelectorAll('.rvq.drop-over'), function (x) { if (x !== q) x.classList.remove('drop-over'); }); q.classList.add('drop-over'); });
+  $('rvRoot').addEventListener('drop', function (e) {
+    var q = e.target.closest && e.target.closest('.rvq'); if (!q) return; e.preventDefault(); q.classList.remove('drop-over');
+    var id = e.dataTransfer.getData('text/plain'); if (!id || !S.decisions[id] || S.decisions[id].kind === q.dataset.rvq) return;
+    queue('decisions', id, { kind: q.dataset.rvq }, 0); toast('Verplaatst naar ' + RVL[q.dataset.rvq].l + '.');
+  });
 
   /* ---------- exporteren (afbeelding of PDF) ---------- */
   var EXPORT_LIB = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js';
@@ -675,6 +805,7 @@
     return drag.kind === 't' ? el.closest('[data-tdrop-status]') : el.closest('[data-drop-row]');
   }
   document.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('#rvRoot')) { drag.id = null; return; } // het review-bord gebruikt eigen (native) slepen
     if (e.pointerType === 'touch' || e.button !== 0 || S.readOnly || !S.ready) return;
     var b = e.target.closest('#board .callout, #board .mdot, #planner .tcard, #parking .pcard'); if (!b) return;
     drag.kind = b.classList.contains('tcard') ? 't' : b.classList.contains('pcard') ? 'p' : 'm';
@@ -1457,7 +1588,7 @@
       if (res[2].data[0]) applySettings(res[2].data[0]);
       S.ready = true; $('btnAddOutcome').disabled = false; $('btnAddMs').disabled = false;
       renderAll();
-      return Promise.all([loadTasks(), loadOgsm()]);
+      return Promise.all([loadTasks(), loadOgsm(), loadDecisions()]);
     });
   }
   function loadOgsm() {
@@ -1468,6 +1599,15 @@
       S.ogsm = g; renderAll();
       if (!S.ogsmChannel) S.ogsmChannel = S.sb.channel('lace-pi-ogsm').on('postgres_changes', { event: '*', schema: 'public', table: 'ogsm' }, onChange('ogsm')).subscribe();
     }, function () { S.ogsmMissing = true; renderAll(); });
+  }
+  function loadDecisions() {
+    return Promise.resolve(S.sb.from('decisions').select('*')).then(function (r) {
+      if (r.error) { S.decisionsMissing = true; renderAll(); return; }
+      S.decisionsMissing = false;
+      var d = {}; (r.data || []).forEach(function (row) { d[row.id] = overlay('decisions', row.id, fromRow(row)); });
+      S.decisions = d; renderAll();
+      if (!S.decChannel) S.decChannel = S.sb.channel('lace-pi-decisions').on('postgres_changes', { event: '*', schema: 'public', table: 'decisions' }, onChange('decisions')).subscribe();
+    }, function () { S.decisionsMissing = true; renderAll(); });
   }
   function loadTasks() {
     return Promise.resolve(S.sb.from('tasks').select('*')).then(function (r) {

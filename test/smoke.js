@@ -17,6 +17,7 @@ const shot = process.argv.includes('--shot');
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(8000); // een vastgelopen stap faalt snel in plaats van de hele test op te houden
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   // Externe bestanden (Supabase-bibliotheek, fonts) zijn in demomodus niet nodig.
@@ -142,6 +143,40 @@ const shot = process.argv.includes('--shot');
     await page.waitForTimeout(600);
     await page.click('.dhead [data-d="close"]');
     assert((await page.locator('[data-oid="o3"] .ogowner').getAttribute('title')).includes('Voorbeeld F'), 'nieuwe eigenaar outcome niet op het bord');
+  });
+
+  await check('Management Review-bord', async () => {
+    try {
+      assert((await page.locator('#rvCount').innerText()).trim() === '4', 'teller open items klopt niet: ' + await page.locator('#rvCount').innerText());
+      assert(await page.locator('[data-oid="o1"] .rvtag.rv-risk').count() === 1, 'risico-label op outcome ontbreekt');
+      await page.click('#btnReview');
+      await page.waitForSelector('.rvpanel');
+      assert(await page.locator('.rvq').count() === 4, 'niet vier vakken');
+      assert(await page.locator('.rvq.q-risk .rvnote').count() === 2, 'risks niet zichtbaar');
+      assert((await page.locator('.rvnote[data-id="d5"] .rvdue').innerText()).includes('Te laat'), 'te late actie niet gemarkeerd');
+      await page.fill('.rvq.q-needed .rvadd', 'Budget voor tooling');
+      await page.press('.rvq.q-needed .rvadd', 'Enter');
+      assert(await page.locator('.rvq.q-needed .rvnote', { hasText: 'Budget voor tooling' }).count() === 1, 'toevoegen werkt niet');
+      await page.click('.rvq.q-needed .rvnote:has-text("Budget voor tooling")');
+      await page.fill('.rvedit [data-rf="owner"]', 'Voorbeeld G');
+      await page.selectOption('.rvedit [data-rf="outcome"]', 'o2');
+      await page.selectOption('.rvedit [data-rf="kind"]', 'confirmed');
+      await page.waitForTimeout(600);
+      assert(await page.locator('.rvq.q-confirmed .rvnote', { hasText: 'Budget voor tooling' }).count() === 1, 'verplaatsen via Vak werkt niet');
+      await page.click('.rvedit [data-rv="done"]');
+      await page.dragAndDrop('.rvnote[data-id="d3"]', '.rvq.q-action', { targetPosition: { x: 40, y: 20 } });
+      assert(await page.locator('.rvq.q-action .rvnote[data-id="d3"]').count() === 1, 'slepen naar Actions werkt niet');
+      await page.selectOption('#rvFilter', 'o1');
+      assert(await page.locator('.rvnote[data-id="d4"]').count() === 0, 'filter op outcome werkt niet');
+      await page.keyboard.press('Escape');
+      assert(await page.locator('.rvpanel').count() === 0, 'paneel sluit niet');
+      await page.click('[data-oid="o1"] .rvtag.rv-risk');
+      assert((await page.locator('#rvFilter').inputValue()) === 'o1', 'label opent paneel niet gefilterd op outcome');
+      await page.click('.rvhead [data-rv="close"]');
+    
+    } finally {
+      await page.evaluate(() => { const c = document.querySelector('#rvRoot [data-rv="close"]'); if (c) c.click(); });
+    }
   });
 
   await check('geen bijdragen-banen op het bord', async () => {
