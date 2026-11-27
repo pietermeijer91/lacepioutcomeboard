@@ -21,6 +21,7 @@ create table if not exists public.outcomes (
   checks      jsonb not null default '{}'::jsonb,   -- outcome-check: invloed, termijn, meetbaar, capaciteit, eerstestap
   cio_ref     text not null default '',             -- CIO Office-doel ('' = niet gekoppeld)
   parked      boolean not null default false,        -- true = op de parkeerplaats voor de volgende PI
+  owner       text not null default '',             -- eigenaar van de outcome (migrations/013)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   updated_by  text

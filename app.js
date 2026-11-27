@@ -255,7 +255,7 @@
     el.innerHTML = h;
   }
 
-  function ownerChip(g) { return g && g.owner ? '<span class="ogowner" title="Eigenaar: ' + esc(g.owner) + '"><span class="ini" aria-hidden="true">' + esc(initials(g.owner)) + '</span>' + esc(String(g.owner).trim().split(/\s+/)[0]) + '</span>' : ''; } // voornaam zichtbaar, volledige naam bij aanwijzen
+  function ownerChip(g, cls) { return g && g.owner ? '<span class="ogowner' + (cls ? ' ' + cls : '') + '" title="Eigenaar: ' + esc(g.owner) + '"><span class="ini" aria-hidden="true">' + esc(initials(g.owner)) + '</span>' + esc(String(g.owner).trim().split(/\s+/)[0]) + '</span>' : ''; } // voornaam zichtbaar, volledige naam bij aanwijzen
   function initials(n) { return String(n).trim().split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
   function renderBoard() {
     if (!S.ready) { $('board').innerHTML = '<div class="empty">Bord laden…</div>'; return; }
@@ -277,7 +277,7 @@
 
       if (!expanded) {
         h += '<div class="row compact' + (sel ? ' sel' : '') + '">' +
-          '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
+          '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1"><div class="otop"><h3><button type="button" class="otitle" data-act="focus" data-id="' + esc(o.id) + '" aria-label="' + esc((o.title || 'Outcome') + ' uitklappen') + '"><span class="chev" aria-hidden="true">▸</span>' + esc(o.title || '(zonder titel)') + '</button></h3><div class="otags"><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span>' + ownerChip(o, 'o-own') + '</div></div>' + bar +
           '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · ' + oms.length + (oms.length === 1 ? ' mijlpaal' : ' mijlpalen') + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
           (S.readOnly ? '' : '<div class="minibtns"><button type="button" class="mini edit" data-act="edit" data-id="' + esc(o.id) + '">✎ Bewerken</button></div>') + '</div>' +
           // Mijlpalen altijd als kaartje met tekst, ook als de outcome is ingeklapt
@@ -290,7 +290,7 @@
 
       h += '<div class="row focus' + (sel ? ' sel' : '') + '">' +
         '<div class="ocell" data-oid="' + esc(o.id) + '" style="grid-column:1;grid-row:1 / span ' + n + '">' +
-        '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span></div>' + bar +
+        '<div class="otop"><h3>' + (S.expandAll ? '' : '<button type="button" class="otitle open" data-act="unfocus" aria-label="Inklappen"><span class="chev" aria-hidden="true">▾</span></button>') + esc(o.title || '(zonder titel)') + '</h3><div class="otags"><span class="pill h-' + st.health + '">' + HEALTH[st.health] + '</span>' + ownerChip(o, 'o-own') + '</div></div>' + bar +
         // Compact: kerncijfers en key results op één regel; hypothese, check-ins, business value en leerlog staan in het zijpaneel
         '<span class="meta"><span class="num" style="color:var(--ink)">' + st.pct + '%</span> gerealiseerd · verwacht ' + T.expected + '%' + confBadge(o) + (o.commitment === 'stretch' ? ' · <span class="tag">Stretch</span>' : '') + '</span>' + extraGoals(o) +
         (krs.length ? '<ul class="krs mini">' + krs.map(function (k) { var p = krPct(k), u = k.unit || ''; return '<li title="' + esc(k.text) + '"><span class="kt">' + esc(k.text) + '</span><span class="num">' + esc(num(k.current) + u + '/' + num(k.target) + u) + '</span><span class="bar thin"><span class="fill" style="display:block;width:' + p + '%;background:' + (p >= 100 ? 'var(--done-bar)' : 'var(--muted)') + '"></span></span></li>'; }).join('') + '</ul>' : '') +
@@ -427,6 +427,7 @@
       var e = res.error;
       if (/checks/.test(e.message || '')) { toast('De outcome-check is nog niet geactiveerd. Voer supabase/migrations/008_outcome_check.sql uit in Supabase.'); return; }
       if (/parked|next_pi_name/.test(e.message || '')) { toast('De parkeerplaats is nog niet geactiveerd. Voer supabase/migrations/010_parkeerplaats.sql uit in Supabase.'); return; }
+      if (/owner/.test(e.message || '') && /outcomes/.test(e.message || '')) { toast('Eigenaar bij outcomes is nog niet geactiveerd. Voer supabase/migrations/013_outcome_eigenaar.sql uit in Supabase.'); return; }
       if (/owner/.test(e.message || '') && /ogsm/.test(e.message || '')) { toast('Eigenaar bij doelen is nog niet geactiveerd. Voer supabase/migrations/012_ogsm_eigenaar.sql uit in Supabase.'); return; }
       if (/cio_ref|ogsm_kind_check/.test(e.message || '')) { toast('De CIO Office-kolom is nog niet geactiveerd. Voer supabase/migrations/009_cio_office.sql uit in Supabase.'); return; }
       if (/ogsm/.test(e.message || '')) { toast('OGSM is nog niet geactiveerd. Voer supabase/migrations/007_ogsm.sql uit in Supabase.'); return; }
@@ -865,6 +866,7 @@
       title = 'PI-outcome';
       var goals = goalList();
       body = '<label class="field">Outcome<input id="o-title" class="big" data-f="title" type="text" value="' + esc(o.title) + '"' + ro + '></label>' +
+        '<label class="field">Eigenaar<input id="o-owner" data-f="owner" type="text" placeholder="Wie trekt deze outcome?" autocomplete="off" value="' + esc(o.owner || '') + '"' + ro + '></label>' +
         (S.ogsmMissing ? '' : '<div class="sec"><label class="field">OGSM-doel<select id="o-ogsm" data-f="ogsmRef"' + ro + '>' + opt('', 'Nog niet gekoppeld', o.ogsmRef || '') + goals.map(function (g) { return opt(g.id, (g.code ? g.code + ' · ' : '') + (g.title || ''), o.ogsmRef || ''); }).join('') + '</select></label>' +
           (goals.length > 1 ? '<div class="ogx"><span class="h">Draagt ook bij aan</span>' + goals.map(function (g) { return '<label class="ogxl"><input type="checkbox" data-ogx="' + esc(g.id) + '"' + ((o.ogsmExtra || []).indexOf(g.id) >= 0 ? ' checked' : '') + (g.id === o.ogsmRef ? ' disabled' : '') + ro + '>' + esc((g.code ? g.code + ' · ' : '') + (g.title || '')) + '</label>'; }).join('') + '</div>' : '') +
           (goals.length ? '' : '<p class="note">Nog geen OGSM-doelen. Vul ze in via PI-instellingen › OGSM.</p>') +

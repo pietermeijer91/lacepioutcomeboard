@@ -135,6 +135,15 @@ const shot = process.argv.includes('--shot');
     assert((await page.locator('#ogLines path.ogl').first().getAttribute('d')) === before, 'lijn verspringt bij opnieuw tekenen');
   });
 
+  await check('eigenaar bij een LACE PI-outcome', async () => {
+    assert((await page.locator('[data-oid="o1"] .ogowner').getAttribute('title')).includes('Voorbeeld B'), 'eigenaar outcome o1 ontbreekt');
+    await page.click('button[data-act="edit"][data-id="o3"]');
+    await page.fill('#o-owner', 'Voorbeeld F');
+    await page.waitForTimeout(600);
+    await page.click('.dhead [data-d="close"]');
+    assert((await page.locator('[data-oid="o3"] .ogowner').getAttribute('title')).includes('Voorbeeld F'), 'nieuwe eigenaar outcome niet op het bord');
+  });
+
   await check('geen bijdragen-banen op het bord', async () => {
     assert(await page.locator('#board .lane').count() === 0, 'bijdragen staan nog op het bord');
     assert(!(await page.locator('#board .row.head').innerText()).includes('Bijdragen'), 'kolom Bijdragen staat nog in de kop');
